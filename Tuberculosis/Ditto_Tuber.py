@@ -1,4 +1,4 @@
-
+# fl_train_ditto_plot_both.py
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -61,7 +61,6 @@ def set_seed(seed=SEED):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
 set_seed()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,10 +71,8 @@ class PathListDataset(Dataset):
         self.samples = list(samples)
         self.transform = transform
         self.loader = loader
-
     def __len__(self):
         return len(self.samples)
-
     def __getitem__(self, idx):
         path, label = self.samples[idx]
         img = self.loader(path)
@@ -132,9 +129,9 @@ def make_multi_client_dataloaders(client_roots, batch_size=BATCH_SIZE, image_siz
         val_ds = PathListDataset(va, transform=val_tf)
         test_ds = PathListDataset(te, transform=val_tf)
         per_client_dataloaders.append({
-            "train": DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=pin_memory),
-            "val": DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory),
-            "test": DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory),
+            "train": DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda")),
+            "val": DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda")),
+            "test": DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda")),
             "train_ds": train_ds
         })
         per_client_test_dsets[client_root] = test_ds
@@ -144,9 +141,9 @@ def make_multi_client_dataloaders(client_roots, batch_size=BATCH_SIZE, image_siz
     combined_test_ds = PathListDataset(test_samples_all, transform=val_tf)
 
     dataloaders_combined = {
-        "train": DataLoader(combined_train_ds, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=pin_memory),
-        "val": DataLoader(combined_val_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory),
-        "test": DataLoader(combined_test_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory)
+        "train": DataLoader(combined_train_ds, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda")),
+        "val": DataLoader(combined_val_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda")),
+        "test": DataLoader(combined_test_ds, batch_size=batch_size, shuffle=False, num_workers=workers, pin_memory=pin_memory and (DEVICE.type=="cuda"))
     }
     sizes = {"train": len(combined_train_ds), "val": len(combined_val_ds), "test": len(combined_test_ds)}
     return dataloaders_combined, sizes, CLASS_NAMES, combined_train_ds, per_client_dataloaders, per_client_test_dsets
@@ -158,13 +155,6 @@ def compute_class_weights_from_dataset(dataset):
     weights = total / (counts + 1e-8)
     weights = weights / np.mean(weights)
     return torch.tensor(weights, dtype=torch.float32)
-
-def make_weighted_sampler_from_dataset(dataset):
-    targets = [s[1] for s in dataset.samples]
-    counts = np.bincount(targets, minlength=len(CLASS_NAMES)).astype(np.float32)
-    inv_freq = 1.0 / np.maximum(counts, 1.0)
-    weights = [float(inv_freq[t]) for t in targets]
-    return WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
 
 def create_model(num_classes, arch=ARCH, pretrained=PRETRAINED):
     if arch.startswith("densenet") and hasattr(torchvision.models, arch):
@@ -188,12 +178,10 @@ def average_models_weighted(models: List[torch.nn.Module], weights: List[float])
         raise ValueError("No models to average")
     if len(models) != len(weights):
         raise ValueError("models and weights must have same length")
-
     sum_w = float(sum(weights))
     if sum_w == 0.0:
         raise ValueError("Sum of weights is zero")
     norm_weights = [w / sum_w for w in weights]
-
     base_sd = models[0].state_dict()
     avg_sd = {}
     with torch.no_grad():
@@ -215,31 +203,27 @@ def l2_distance_params(model_a, model_b):
         total += torch.sum((pa - pb.detach()) ** 2)
     return total
 
-
 def train_local_ditto_classification(train_loader, local_global_model, personal_model,
                                      criterion, opt_global, opt_personal, mu, device, epochs=LOCAL_EPOCHS, use_amp=False):
     local_global_model.to(device)
     personal_model.to(device)
     scaler = torch.cuda.amp.GradScaler() if (use_amp and device.type=="cuda") else None
-
     for ep in range(epochs):
         local_global_model.train()
         personal_model.train()
         pbar = tqdm(train_loader, desc=f"LocalDitto ep{ep+1}/{epochs}", leave=False)
         for x, y in pbar:
             x, y = x.to(device), y.to(device)
-
+            # update global copy
             opt_global.zero_grad()
             with torch.cuda.amp.autocast(enabled=(scaler is not None)):
                 out_g = local_global_model(x)
                 loss_g = criterion(out_g, y)
             if scaler:
-                scaler.scale(loss_g).backward()
-                scaler.step(opt_global)
+                scaler.scale(loss_g).backward(); scaler.step(opt_global)
             else:
-                loss_g.backward()
-                opt_global.step()
-
+                loss_g.backward(); opt_global.step()
+            # update personal with proximal
             opt_personal.zero_grad()
             with torch.cuda.amp.autocast(enabled=(scaler is not None)):
                 out_p = personal_model(x)
@@ -247,12 +231,9 @@ def train_local_ditto_classification(train_loader, local_global_model, personal_
                 prox = 0.5 * mu * l2_distance_params(personal_model, local_global_model)
                 total_personal_loss = loss_p + prox
             if scaler:
-                scaler.scale(total_personal_loss).backward()
-                scaler.step(opt_personal)
-                scaler.update()
+                scaler.scale(total_personal_loss).backward(); scaler.step(opt_personal); scaler.update()
             else:
-                total_personal_loss.backward()
-                opt_personal.step()
+                total_personal_loss.backward(); opt_personal.step()
     return
 
 @torch.no_grad()
@@ -315,12 +296,10 @@ def evaluate_model(model, dataloader, device, criterion=None, return_per_class=F
         })
     return metrics
 
-
 def print_client_summary(metrics: dict, client_idx: int, client_name: str, class_names: List[str], label=""):
     if metrics is None or metrics == {}:
         print(f"[CLIENT {client_idx}] {label} Summary metrics: (no samples)")
         return
-
     acc = metrics.get("accuracy", float("nan"))
     prec = metrics.get("precision_macro", float("nan"))
     rec = metrics.get("recall_macro", float("nan"))
@@ -328,7 +307,6 @@ def print_client_summary(metrics: dict, client_idx: int, client_name: str, class
     kappa = metrics.get("cohen_kappa", float("nan"))
     per_specs = metrics.get("per_class_specificity", [])
     mean_spec = float(np.mean(per_specs)) if len(per_specs) > 0 else float("nan")
-
     print(f"[CLIENT {client_idx}] {label} Summary metrics:")
     print(f"  Accuracy       : {acc:.4f}")
     print(f"  Precision (mac): {prec:.4f}")
@@ -372,6 +350,40 @@ def print_client_summary(metrics: dict, client_idx: int, client_name: str, class
         print("  (per-class metrics not available)")
     print("\n")
 
+# ----------------------------
+# Plotting both global & personal per-client curves
+# ----------------------------
+def plot_global_vs_personal_accuracy(rounds_history_global, rounds_history_personal, out_dir, client_names):
+    rounds = list(range(1, len(rounds_history_global) + 1))
+    plt.figure(figsize=(8,5))
+    for cid in range(len(client_names)):
+        global_vals = [rm.get(f"client{cid}_global_acc", np.nan) for rm in rounds_history_global]
+        personal_vals = [rm.get(f"client{cid}_personal_acc", np.nan) for rm in rounds_history_personal]
+        plt.plot(rounds, personal_vals, label=f"{client_names[cid]} (personal)", linewidth=2)
+        plt.plot(rounds, global_vals, label=f"{client_names[cid]} (global)", linestyle="--", linewidth=1.5)
+    plt.xlabel("Global Round"); plt.ylabel("Test Accuracy"); plt.title("Per-client: GLOBAL vs PERSONAL Accuracy")
+    plt.legend(ncol=2, fontsize="small")
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "per_client_global_vs_personal_accuracy.png"))
+    plt.close()
+
+def plot_global_vs_personal_loss(rounds_history_global, rounds_history_personal, out_dir, client_names):
+    rounds = list(range(1, len(rounds_history_global) + 1))
+    plt.figure(figsize=(8,5))
+    for cid in range(len(client_names)):
+        global_vals = [rm.get(f"client{cid}_global_loss", np.nan) for rm in rounds_history_global]
+        personal_vals = [rm.get(f"client{cid}_personal_loss", np.nan) for rm in rounds_history_personal]
+        plt.plot(rounds, personal_vals, label=f"{client_names[cid]} (personal)", linewidth=2)
+        plt.plot(rounds, global_vals, label=f"{client_names[cid]} (global)", linestyle="--", linewidth=1.5)
+    plt.xlabel("Global Round"); plt.ylabel("Test Loss"); plt.title("Per-client: GLOBAL vs PERSONAL Loss")
+    plt.legend(ncol=2, fontsize="small")
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "per_client_global_vs_personal_loss.png"))
+    plt.close()
+
+# ----------------------------
+# Main federated loop (Ditto)
+# ----------------------------
 def main():
     print("DEVICE:", DEVICE)
     combined_loaders, combined_sizes, class_names, combined_train_ds, per_client_dataloaders, per_client_test_dsets = make_multi_client_dataloaders(
@@ -384,14 +396,17 @@ def main():
     total_train = sum(client_train_sizes) if sum(client_train_sizes) > 0 else 1
     print("client train sizes:", client_train_sizes)
 
+    # init models
     global_model = create_model(num_classes=num_classes, arch=ARCH, pretrained=PRETRAINED).to(DEVICE)
     personal_models = [copy.deepcopy(global_model).to(DEVICE) for _ in range(len(per_client_dataloaders))]
 
     print(f"Global model {ARCH} created with {count_parameters(global_model):,} trainable params")
 
+    # histories for plotting
+    rounds_history_global = []    # list of dicts holding per-client global metrics each round
+    rounds_history_personal = []  # list of dicts holding per-client personal metrics each round
+
     round_results = []
-    per_client_acc_history = {i: [] for i in range(len(per_client_dataloaders))}
-    per_client_loss_history = {i: [] for i in range(len(per_client_dataloaders))}
 
     for r in range(COMM_ROUNDS):
         print("\n" + "="*60)
@@ -401,11 +416,13 @@ def main():
         weights = []
         round_summary = {"round": r+1}
 
+        # local training (Ditto) per client
         for i, client in enumerate(per_client_dataloaders):
             print(f"\n[CLIENT {i}] {CLIENT_NAMES[i]}: local Ditto training")
             local_global = copy.deepcopy(global_model).to(DEVICE)
             personal = personal_models[i]
             personal.to(DEVICE)
+
             train_ds = client['train'].dataset
             client_cw = compute_class_weights_from_dataset(train_ds).to(DEVICE)
             criterion = nn.CrossEntropyLoss(weight=client_cw)
@@ -427,15 +444,18 @@ def main():
             w = float(client_train_sizes[i]) / float(total_train)
             weights.append(w)
             print(f"[CLIENT {i}] aggregation weight: {w:.4f}")
+
+            # keep personal model (move to CPU to conserve mem if not using GPU)
             personal_models[i] = personal.cpu() if DEVICE.type != "cuda" else personal
 
+        # Aggregate to server global
         print("\nAggregating local global models (FedAvg weighted)")
         avg_state = average_models_weighted(local_models, weights)
         avg_state_on_device = {k: v.to(DEVICE) for k, v in avg_state.items()}
         global_model.load_state_dict(avg_state_on_device)
         global_model.to(DEVICE)
 
-        print("\nGlobal validation on combined val sets...")
+        # Combined validation (same as before)
         combined_val_dsets = [per_client_dataloaders[i]['val'].dataset for i in range(len(per_client_dataloaders))]
         combined_val = ConcatDataset(combined_val_dsets)
         combined_val_loader = DataLoader(combined_val, batch_size=BATCH_SIZE, shuffle=False, num_workers=WORKERS, pin_memory=PIN_MEMORY and (DEVICE.type=="cuda"))
@@ -455,7 +475,7 @@ def main():
         round_summary["global_val_loss"] = float(global_val_metrics.get("loss", np.nan))
         round_summary["global_val_acc"] = float(global_val_metrics.get("accuracy", np.nan))
 
-        print("\nGlobal TEST on combined test (all clients)")
+        # Global combined test (kept for logging)
         combined_test_dsets = [per_client_dataloaders[i]['test'].dataset for i in range(len(per_client_dataloaders))]
         combined_test = ConcatDataset(combined_test_dsets)
         combined_test_loader = DataLoader(combined_test, batch_size=BATCH_SIZE, shuffle=False, num_workers=WORKERS, pin_memory=PIN_MEMORY and (DEVICE.type=="cuda"))
@@ -464,74 +484,21 @@ def main():
         round_summary["global_test_loss"] = float(global_test_metrics.get("loss", np.nan))
         round_summary["global_test_acc"] = float(global_test_metrics.get("accuracy", np.nan))
 
-        try:
-            cm = global_test_metrics.get("confusion_matrix", None)
-            per_prec = global_test_metrics.get("per_class_precision", [])
-            per_rec = global_test_metrics.get("per_class_recall", [])
-            per_f1 = global_test_metrics.get("per_class_f1", [])
-            per_spec = global_test_metrics.get("per_class_specificity", [])
-            per_accs = global_test_metrics.get("per_class_accuracy", [])
-            per_support = global_test_metrics.get("per_class_support", [])
-            per_correct = global_test_metrics.get("per_class_correct", [])
-
-            print("\nCombined TEST per-class metrics (order = {}):".format(class_names))
-            header = ["Class", "Support", "Correct", "Acc", "Prec", "Rec", "F1", "Spec"]
-            print("{:12s} {:8s} {:8s} {:8s} {:8s} {:8s} {:8s} {:8s}".format(*header))
-            for ci, cname in enumerate(class_names):
-                s = int(per_support[ci]) if ci < len(per_support) else 0
-                ccount = int(per_correct[ci]) if ci < len(per_correct) else 0
-                acc_val = float(per_accs[ci]) if ci < len(per_accs) else np.nan
-                pval = float(per_prec[ci]) if ci < len(per_prec) else np.nan
-                rval = float(per_rec[ci]) if ci < len(per_rec) else np.nan
-                fval = float(per_f1[ci]) if ci < len(per_f1) else np.nan
-                sval = float(per_spec[ci]) if ci < len(per_spec) else np.nan
-                print("{:12s} {:8d} {:8d} {:8.4f} {:8.4f} {:8.4f} {:8.4f} {:8.4f}".format(
-                    cname, s, ccount, acc_val, pval, rval, fval, sval
-                ))
-
-            combined_rows = []
-            if cm is not None:
-                for ci, cname in enumerate(class_names):
-                    combined_rows.append({
-                        "class": cname,
-                        "support": int(per_support[ci]) if ci < len(per_support) else 0,
-                        "correct": int(per_correct[ci]) if ci < len(per_correct) else 0,
-                        "acc": float(per_accs[ci]) if ci < len(per_accs) else np.nan,
-                        "prec": float(per_prec[ci]) if ci < len(per_prec) else np.nan,
-                        "rec": float(per_rec[ci]) if ci < len(per_rec) else np.nan,
-                        "f1": float(per_f1[ci]) if ci < len(per_f1) else np.nan,
-                        "spec": float(per_spec[ci]) if ci < len(per_spec) else np.nan
-                    })
-            macro_row = {
-                "class": "macro",
-                "support": int(cm.sum()) if cm is not None else sum([r["support"] for r in combined_rows]) if combined_rows else 0,
-                "correct": int(np.sum([r["correct"] for r in combined_rows])) if combined_rows else 0,
-                "acc": float(global_test_metrics.get("balanced_acc", np.nan)),
-                "prec": float(global_test_metrics.get("precision_macro", np.nan)),
-                "rec": float(global_test_metrics.get("recall_macro", np.nan)),
-                "f1": float(global_test_metrics.get("f1_macro", np.nan)),
-                "spec": float(np.mean(per_spec)) if len(per_spec) > 0 else float(np.nan)
-            }
-            combined_rows.append(macro_row)
-            df_combined = pd.DataFrame(combined_rows)
-            combined_csv = os.path.join(OUTPUT_DIR, "combined_test_metrics.csv")
-            df_combined.to_csv(combined_csv, index=False)
-            if cm is not None:
-                pd.DataFrame(cm, index=class_names, columns=class_names).to_csv(os.path.join(OUTPUT_DIR, "combined_confusion_matrix.csv"))
-            print(f"Saved combined per-class test metrics CSV to: {combined_csv}")
-        except Exception as e:
-            print("Warning saving/printing combined per-class metrics:", e)
-
         per_client_test_metrics = []
+        round_global_metrics = {}
+        round_personal_metrics = {}
+
         for i, client in enumerate(per_client_dataloaders):
             print(f"\nGlobal TEST on client {i} ({CLIENT_NAMES[i]}) test set - GLOBAL model")
             client_train_ds = client['train'].dataset
             client_cw = compute_class_weights_from_dataset(client_train_ds).to(DEVICE)
             client_criterion = nn.CrossEntropyLoss(weight=client_cw)
 
+            # GLOBAL
             cl_metrics_global = evaluate_model(global_model, client['test'], DEVICE, criterion=client_criterion, return_per_class=True, class_names=class_names)
             print_client_summary(cl_metrics_global, i, CLIENT_NAMES[i], class_names, label="GLOBAL")
 
+            # PERSONAL
             print(f"[CLIENT {i}] Test PERSONAL model")
             personal = personal_models[i]
             personal.to(DEVICE)
@@ -544,13 +511,24 @@ def main():
                 "personal_metrics": cl_metrics_personal
             })
 
+            round_global_metrics[f"client{i}_global_acc"] = float(cl_metrics_global.get("accuracy", np.nan))
+            round_global_metrics[f"client{i}_global_loss"] = float(cl_metrics_global.get("loss", np.nan))
+            round_personal_metrics[f"client{i}_personal_acc"] = float(cl_metrics_personal.get("accuracy", np.nan))
+            round_personal_metrics[f"client{i}_personal_loss"] = float(cl_metrics_personal.get("loss", np.nan))
+
+
             round_summary[f"client{i}_test_loss_global"] = float(cl_metrics_global.get("loss", np.nan))
             round_summary[f"client{i}_test_acc_global"] = float(cl_metrics_global.get("accuracy", np.nan))
             round_summary[f"client{i}_test_loss_personal"] = float(cl_metrics_personal.get("loss", np.nan))
             round_summary[f"client{i}_test_acc_personal"] = float(cl_metrics_personal.get("accuracy", np.nan))
 
-            per_client_acc_history[i].append(float(cl_metrics_personal.get("accuracy", np.nan)))
-            per_client_loss_history[i].append(float(cl_metrics_personal.get("loss", np.nan)))
+        rounds_history_global.append(round_global_metrics)
+        rounds_history_personal.append(round_personal_metrics)
+
+
+        plot_global_vs_personal_accuracy(rounds_history_global, rounds_history_personal, OUTPUT_DIR, CLIENT_NAMES)
+        plot_global_vs_personal_loss(rounds_history_global, rounds_history_personal, OUTPUT_DIR, CLIENT_NAMES)
+
 
         ckpt = {
             "round": r+1,
@@ -571,34 +549,16 @@ def main():
         csv_path = os.path.join(OUTPUT_DIR, "fl_round_results_ditto.csv")
         df.to_csv(csv_path, index=False)
         print("Saved per-round summary CSV to", csv_path)
-        rounds = list(range(1, len(round_results)+1))
-        gtest_acc = [rr.get("global_test_acc", 0.0) for rr in round_results]
-        gtest_loss = [rr.get("global_test_loss", 0.0) for rr in round_results]
-
-        plt.figure(figsize=(6,4))
-        plt.plot(rounds, gtest_acc)
-        plt.xlabel("Global Round"); plt.ylabel("Test Accuracy"); plt.title("Global Test Accuracy")
-        plt.savefig(os.path.join(OUTPUT_DIR, "global_test_accuracy_rounds_ditto.png")); plt.close()
-
-        plt.figure(figsize=(6,4))
-        plt.plot(rounds, gtest_loss)
-        plt.xlabel("Global Round"); plt.ylabel("Test Loss");plt.title("Global Test Loss")
-        plt.savefig(os.path.join(OUTPUT_DIR, "global_test_loss_rounds_ditto.png")); plt.close()
-
-        per_client_acc_fname = os.path.join(OUTPUT_DIR, "per_client_personal_test_accuracy_rounds.png")
-        plt.figure(figsize=(8,5))
-        for i, name in enumerate(CLIENT_NAMES):
-            plt.plot(range(1, len(per_client_acc_history[i])+1), per_client_acc_history[i], label=name)
-        plt.xlabel("Global Round"); plt.ylabel("Personal Test Accuracy");plt.title("Per-client PERSONAL Test Accuracy"); plt.legend()
-        plt.savefig(per_client_acc_fname); plt.close()
 
     final_model_path = os.path.join(OUTPUT_DIR, "global_final_ditto.pth")
     torch.save({"model_state": global_model.state_dict(), "class_names": class_names}, final_model_path)
     print("Final global model saved to:", final_model_path)
     for i, pm in enumerate(personal_models):
+        pm_cpu = pm.cpu() if DEVICE.type=="cuda" else pm
         pm_path = os.path.join(OUTPUT_DIR, f"personal_model_client{i}_final_ditto.pth")
-        torch.save({"model_state": (pm.cpu().state_dict()), "class_names": class_names}, pm_path)
+        torch.save({"model_state": (pm_cpu.state_dict()), "class_names": class_names}, pm_path)
         print(f"Saved personal model for client {i} to {pm_path}")
     print("Federated Ditto training finished.")
+
 if __name__ == "__main__":
     main()

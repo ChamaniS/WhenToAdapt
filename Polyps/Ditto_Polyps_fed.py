@@ -1,17 +1,10 @@
-# ditto_fed_polyp_personal_plots.py
-"""
-Ditto-style federated polyp segmentation (per-client personalization) with
-per-client plots that show each client's PERSONAL model Dice and IoU across rounds.
-
-Copy-paste and run. Tune hyperparams at the top.
-"""
+# ditto_fed_polyp.py
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import copy
 import time
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import albumentations as A
@@ -20,13 +13,10 @@ from tqdm import tqdm
 import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
 
-# local modules (unchanged)
 from models.UNET import UNET
-from dataset import CVCDataset   # must support (img_dir, mask_dir, transform)
+from dataset import CVCDataset
 
-# -------------------------
-# Settings (tune these)
-# -------------------------
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_CLIENTS = 4
 LOCAL_EPOCHS = 12
@@ -35,8 +25,9 @@ BATCH_SIZE = 4
 LR_GLOBAL = 1e-4
 LR_PERSONAL = 1e-4
 PERSONALIZATION_MU = 1.0
-OUT_DIR = "Outputs_ditto_personal"
+OUT_DIR = "Outputs_ditto"
 os.makedirs(OUT_DIR, exist_ok=True)
+
 
 train_img_dirs = [
     r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
@@ -78,9 +69,9 @@ client_names = ["Kvasir", "ETIS", "CVC-Colon","CVC-Clinic"]
 
 start_time = time.time()
 
-def get_loader(img_dir, mask_dir, transform, batch_size=BATCH_SIZE, shuffle=True, num_workers=0):
+def get_loader(img_dir, mask_dir, transform, batch_size=BATCH_SIZE, shuffle=True):
     ds = CVCDataset(img_dir, mask_dir, transform=transform)
-    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=(DEVICE=="cuda"))
+    return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
 
 def compute_metrics(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
@@ -119,24 +110,9 @@ def get_loss_fn(device):
     return smp.losses.DiceLoss(mode="binary", from_logits=True).to(device)
 
 def average_models_weighted(models, weights):
-    if len(models) == 0:
-        raise ValueError("No models to average")
-    sum_w = float(sum(weights))
-    norm_weights = [w / sum_w for w in weights]
-    base_sd = models[0].state_dict()
-    avg_sd = {}
-    for k in base_sd.keys():
-        acc = None
-        for m, w in zip(models, norm_weights):
-            v = m.state_dict()[k].cpu().to(dtype=torch.float32)
-            if acc is None:
-                acc = w * v
-            else:
-                acc += w * v
-        try:
-            avg_sd[k] = acc.to(dtype=base_sd[k].dtype)
-        except Exception:
-            avg_sd[k] = acc
+    avg_sd = copy.deepcopy(models[0].state_dict())
+    for k in avg_sd.keys():
+        avg_sd[k] = sum(weights[i] * models[i].state_dict()[k] for i in range(len(models)))
     return avg_sd
 
 def l2_distance_params(model_a, model_b):
@@ -145,28 +121,27 @@ def l2_distance_params(model_a, model_b):
         total += torch.sum((pa - pb.detach()) ** 2)
     return total
 
+
 def train_local_ditto(train_loader, local_global_model, personal_model,
                       loss_fn, opt_global, opt_personal, mu, device):
     local_global_model.train()
     personal_model.train()
 
     for epoch in range(LOCAL_EPOCHS):
-        pbar = tqdm(train_loader, desc=f"LocalDitto ep{epoch+1}/{LOCAL_EPOCHS}", leave=False)
-        for data, target in pbar:
+        for data, target in tqdm(train_loader, leave=False):
             data = data.to(device)
             target = target.to(device).unsqueeze(1).float()
-
-            opt_global.zero_grad()
             preds_g = local_global_model(data)
             loss_g = loss_fn(preds_g, target)
+            opt_global.zero_grad()
             loss_g.backward()
             opt_global.step()
-
-            opt_personal.zero_grad()
             preds_p = personal_model(data)
             loss_p = loss_fn(preds_p, target)
+            # proximal term: (mu/2) * ||p - w_i||^2
             prox = 0.5 * mu * l2_distance_params(personal_model, local_global_model)
             total_personal_loss = loss_p + prox
+            opt_personal.zero_grad()
             total_personal_loss.backward()
             opt_personal.step()
 
@@ -175,53 +150,58 @@ def train_local_ditto(train_loader, local_global_model, personal_model,
 @torch.no_grad()
 def evaluate(loader, model, loss_fn, split="Val", device="cpu"):
     model.eval()
-    total_loss = 0.0
-    metrics = []
+    total_loss, metrics = 0.0, []
     n = 0
     for data, target in loader:
-        data = data.to(device)
-        target = target.to(device).unsqueeze(1).float()
+        data, target = data.to(device), target.to(device).unsqueeze(1).float()
         preds = model(data)
         loss = loss_fn(preds, target)
-        total_loss += float(loss.item()) * data.size(0)
+        total_loss += loss.item() * data.size(0)
         metrics.append(compute_metrics(preds, target))
         n += data.size(0)
     avg_metrics = average_metrics(metrics)
     if avg_metrics:
-        print(f"{split}: " + " | ".join([f"{k}: {v:.4f}" for k, v in avg_metrics.items()]))
-    return (total_loss / max(1, n), avg_metrics)
+        print(f"{split}: " + " | ".join([f"{k}: {v:.4f}" for k,v in avg_metrics.items()]))
+    return total_loss / max(1, n), avg_metrics
 
-def plot_personal_curves(round_metrics, out_dir, client_names):
+
+def plot_metrics(round_metrics, out_dir):
     rounds = list(range(1, len(round_metrics) + 1))
 
-    plt.figure(figsize=(6,4))
+    plt.figure()
     for cid in range(NUM_CLIENTS):
-        vals = [rm.get(f"client{cid}_personal_dice_no_bg", 0.0) for rm in round_metrics]
-        plt.plot(rounds, vals, label=f"{client_names[cid]}")
+        vals = [rm.get(f"client{cid}_personal_dice_no_bg", 0) for rm in round_metrics]
+        plt.plot(rounds, vals, label=f"{client_names[cid]} (personal)")
+    for cid in range(NUM_CLIENTS):
+        vals = [rm.get(f"client{cid}_global_dice_no_bg", 0) for rm in round_metrics]
+        plt.plot(rounds, vals, linestyle="--", label=f"{client_names[cid]} (global)")
     plt.xlabel("Global Round")
     plt.ylabel("Dice")
-    plt.title("Per-client Dice")
+    plt.title("Per-client Dice (global & personal)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "per_client_personal_dice_no_bg.png"))
+    plt.savefig(os.path.join(out_dir, "dice_no_bg_ditto.png"))
     plt.close()
 
-    plt.figure(figsize=(6,4))
+    plt.figure()
     for cid in range(NUM_CLIENTS):
-        vals = [rm.get(f"client{cid}_personal_iou_no_bg", 0.0) for rm in round_metrics]
-        plt.plot(rounds, vals, label=f"{client_names[cid]}")
+        vals = [rm.get(f"client{cid}_personal_iou_no_bg", 0) for rm in round_metrics]
+        plt.plot(rounds, vals, label=f"{client_names[cid]} (personal)")
+    for cid in range(NUM_CLIENTS):
+        vals = [rm.get(f"client{cid}_global_iou_no_bg", 0) for rm in round_metrics]
+        plt.plot(rounds, vals, linestyle="--", label=f"{client_names[cid]} (global)")
     plt.xlabel("Global Round")
     plt.ylabel("IoU")
-    plt.title("Per-client IoU")
+    plt.title("Per-client IoU (global & personal)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir, "per_client_personal_iou_no_bg.png"))
+    plt.savefig(os.path.join(out_dir, "iou_no_bg_ditto.png"))
     plt.close()
 
 def main():
     tr_tf = A.Compose([A.Resize(224,224), A.Normalize(mean=[0]*3,std=[1]*3), ToTensorV2()])
     val_tf = tr_tf
-    global_model = UNET(in_channels=3, out_channels=1).to(DEVICE)
+    global_model = UNET(in_channels=3, out_channels=1).cuda()
     personal_models = [copy.deepcopy(global_model).to(DEVICE) for _ in range(NUM_CLIENTS)]
 
     round_metrics = []
@@ -235,7 +215,7 @@ def main():
         for i in range(NUM_CLIENTS):
             print(f"\n[Client {client_names[i]}]")
             local_global = copy.deepcopy(global_model).to(DEVICE)
-            personal = personal_models[i].to(DEVICE)
+            personal = personal_models[i]
 
             opt_global = optim.AdamW(local_global.parameters(), lr=LR_GLOBAL)
             opt_personal = optim.AdamW(personal.parameters(), lr=LR_PERSONAL)
@@ -244,51 +224,46 @@ def main():
 
             train_loader = get_loader(train_img_dirs[i], train_mask_dirs[i], tr_tf, batch_size=BATCH_SIZE)
             val_loader = get_loader(val_img_dirs[i], val_mask_dirs[i], val_tf, batch_size=BATCH_SIZE, shuffle=False)
+
             train_local_ditto(train_loader, local_global, personal, loss_fn, opt_global, opt_personal, PERSONALIZATION_MU, DEVICE)
 
             print("Local global model eval (client local view):")
             evaluate(val_loader, local_global, loss_fn, split="Val (local_global)", device=DEVICE)
 
-            local_models.append(local_global.cpu())
+            local_models.append(local_global)
             sz = len(train_loader.dataset)
             weights.append(sz)
             total_sz += sz
-            personal_models[i] = personal.cpu()
 
-        if total_sz == 0:
-            total_sz = 1.0
         norm_weights = [w / total_sz for w in weights]
         avg_sd = average_models_weighted(local_models, norm_weights)
         global_model.load_state_dict(avg_sd)
-        global_model.to(DEVICE)
 
-        loss_fn = get_loss_fn(DEVICE)
         rm = {}
+        loss_fn = get_loss_fn(DEVICE)
         for i in range(NUM_CLIENTS):
             test_loader = get_loader(test_img_dirs[i], test_mask_dirs[i], val_tf, batch_size=BATCH_SIZE, shuffle=False)
-            personal = personal_models[i].to(DEVICE)
-            print(f"[Client {client_names[i]}] Test PERSONAL model")
-            _, personal_metrics = evaluate(test_loader, personal, loss_fn, split="Test (personal)", device=DEVICE)
-
-            if personal_metrics:
-                rm[f"client{i}_personal_dice_no_bg"] = personal_metrics.get("dice_no_bg", 0.0)
-                rm[f"client{i}_personal_iou_no_bg"] = personal_metrics.get("iou_no_bg", 0.0)
-            else:
-                rm[f"client{i}_personal_dice_no_bg"] = 0.0
-                rm[f"client{i}_personal_iou_no_bg"] = 0.0
-
             print(f"[Client {client_names[i]}] Test GLOBAL model")
-            _, global_metrics = evaluate(test_loader, global_model, loss_fn, split="Test (global)", device=DEVICE)
-            if global_metrics:
-                rm[f"client{i}_global_dice_no_bg"] = global_metrics.get("dice_no_bg", 0.0)
-                rm[f"client{i}_global_iou_no_bg"] = global_metrics.get("iou_no_bg", 0.0)
+            _, global_test_metrics = evaluate(test_loader, global_model, loss_fn, split="Test (global)", device=DEVICE)
+            print(f"[Client {client_names[i]}] Test PERSONAL model")
+            _, personal_test_metrics = evaluate(test_loader, personal_models[i], loss_fn, split="Test (personal)", device=DEVICE)
+
+            if global_test_metrics:
+                rm[f"client{i}_global_dice_no_bg"] = global_test_metrics["dice_no_bg"]
+                rm[f"client{i}_global_iou_no_bg"] = global_test_metrics["iou_no_bg"]
             else:
                 rm[f"client{i}_global_dice_no_bg"] = 0.0
                 rm[f"client{i}_global_iou_no_bg"] = 0.0
 
+            if personal_test_metrics:
+                rm[f"client{i}_personal_dice_no_bg"] = personal_test_metrics["dice_no_bg"]
+                rm[f"client{i}_personal_iou_no_bg"] = personal_test_metrics["iou_no_bg"]
+            else:
+                rm[f"client{i}_personal_dice_no_bg"] = 0.0
+                rm[f"client{i}_personal_iou_no_bg"] = 0.0
+
         round_metrics.append(rm)
-        plot_personal_curves(round_metrics, OUT_DIR, client_names)
-        torch.save(round_metrics, os.path.join(OUT_DIR, "round_metrics_personal.pt"))
+        plot_metrics(round_metrics, OUT_DIR)
 
     end_time = time.time()
     print(f"Total runtime: {(end_time - start_time):.2f} seconds")
