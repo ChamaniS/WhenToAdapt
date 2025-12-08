@@ -1,4 +1,4 @@
-# fed_polyp_adain_with_grid.py
+
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -20,14 +20,10 @@ import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
 from PIL import Image
 
-# local imports (assumed present)
 from models.UNET import UNET
-#from models.DuckNet import DuckNet
-from dataset import CVCDataset   # must support (img_dir, mask_dir, transform)
+from dataset import CVCDataset
 
-# -------------------------
-# Settings (edit as needed)
-# -------------------------
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_CLIENTS = 4
 LOCAL_EPOCHS = 12
@@ -37,9 +33,6 @@ start_time = time.time()
 out_dir = "FL_Outputs_AdaIN_Polyps"
 os.makedirs(out_dir, exist_ok=True)
 
-# -------------------------
-# Client dataset directories (your existing lists)
-# -------------------------
 train_img_dirs = [
     r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
     r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\train\images",
@@ -78,18 +71,14 @@ test_mask_dirs = [
 ]
 client_names = ["Kvasir", "ETIS", "CVC-Colon","CVC-Clinic"]
 
-# -------------------------
-# AdaIN harmonization settings
-# -------------------------
-HARMONIZE = True                 # enable AdaIN harmonization
-STYLE_SOURCE = "first_client"    # "first_client" | "per_client" | "random_global"
-HARMONIZE_VAL_TEST = True       # whether to harmonize val/test splits (usually False)
-IMG_SIZE = 224                   # harmonization resizing
+
+HARMONIZE = True
+STYLE_SOURCE = "first_client"
+HARMONIZE_VAL_TEST = True
+IMG_SIZE = 224
 SEED = 42
 
-# -------------------------
-# Utility helpers
-# -------------------------
+
 def ensure_dir(p):
     os.makedirs(p, exist_ok=True)
 
@@ -98,21 +87,17 @@ def list_images_in_dir(d):
         return []
     return [f for f in os.listdir(d) if f.lower().endswith((".png",".jpg",".jpeg",".bmp",".tif",".tiff"))]
 
-# -------------------------
-# AdaIN (pixel-space channel mean/std transfer)
-# -------------------------
 from torchvision.datasets.folder import default_loader
 from torchvision import transforms
 to_tensor_no_norm = transforms.Compose([transforms.Resize((IMG_SIZE, IMG_SIZE)), transforms.ToTensor()])
 to_pil_from_tensor = transforms.ToPILImage()
 
 def image_load_as_tensor(path):
-    img = default_loader(path)  # PIL
-    t = to_tensor_no_norm(img)  # CxHxW float in [0,1]
+    img = default_loader(path)
+    t = to_tensor_no_norm(img)
     return t
 
 def compute_channel_mean_std(tensor):
-    # tensor: CxHxW
     c = tensor.view(tensor.shape[0], -1)
     mu = c.mean(dim=1)
     std = c.std(dim=1, unbiased=False)
@@ -129,13 +114,8 @@ def adain_transfer(content_t, style_t):
     out = torch.clamp(out, 0.0, 1.0)
     return out
 
-# -------------------------
-# Harmonization orchestration (create harmonized folders per round)
-# -------------------------
+
 def pick_style_image_paths(base_img_dirs: List[str]) -> Dict[int, str]:
-    """
-    Returns mapping client_idx -> style_image_path
-    """
     rng = random.Random(SEED)
     client_train_images = {}
     for i, d in enumerate(base_img_dirs):
@@ -175,15 +155,11 @@ def create_harmonized_round(round_idx: int,
                             src_img_dirs: List[str],
                             src_mask_dirs: List[str],
                             out_base_dir: str = out_dir) -> Tuple[List[str], List[str], Dict[int,str]]:
-    """
-    Creates harmonized image folders under out_base_dir/harmonized_round_{round_idx}/{client_name}/...
-    Returns lists: harmonized_img_dirs, harmonized_mask_dirs (paths that mirror src lists) and the style_map used.
-    Note: src_img_dirs and src_mask_dirs are expected as per-client directories for the TRAIN split here.
-    """
+
     style_map = pick_style_image_paths(src_img_dirs)
     hr_base = os.path.join(out_base_dir, f"harmonized_round_{round_idx}")
     if os.path.exists(hr_base):
-        shutil.rmtree(hr_base)  # replace each round as requested
+        shutil.rmtree(hr_base)
     harmonized_img_dirs = []
     harmonized_mask_dirs = []
     for i in range(len(src_img_dirs)):
@@ -194,7 +170,6 @@ def create_harmonized_round(round_idx: int,
         dest_mask_dir = os.path.join(dest_client_root, "masks")
         ensure_dir(dest_img_dir); ensure_dir(dest_mask_dir)
 
-        # copy masks (unchanged) from src_mask_dirs[i]
         if os.path.isdir(src_mask_dirs[i]):
             for fn in list_images_in_dir(src_mask_dirs[i]):
                 src_mask_fp = os.path.join(src_mask_dirs[i], fn)
@@ -204,7 +179,6 @@ def create_harmonized_round(round_idx: int,
                 except Exception as e:
                     print(f"[HARM] warning copying mask {src_mask_fp}: {e}")
 
-        # Harmonize images from src_img_dirs[i] into dest_img_dir
         style_path = style_map.get(i, None)
         for fn in list_images_in_dir(src_img_dirs[i]) if os.path.isdir(src_img_dirs[i]) else []:
             src_img_fp = os.path.join(src_img_dirs[i], fn)
@@ -216,7 +190,7 @@ def create_harmonized_round(round_idx: int,
                     print(f"[HARM] fallback copy failed for {src_img_fp}: {e}")
                 continue
             try:
-                content_t = image_load_as_tensor(src_img_fp)  # CxHxW float [0,1]
+                content_t = image_load_as_tensor(src_img_fp)
                 style_t = image_load_as_tensor(style_path)
                 hm_t = adain_transfer(content_t, style_t)
                 pil = to_pil_from_tensor(hm_t)
@@ -232,9 +206,7 @@ def create_harmonized_round(round_idx: int,
         harmonized_mask_dirs.append(dest_mask_dir)
     return harmonized_img_dirs, harmonized_mask_dirs, style_map
 
-# -------------------------
-# For visualization: create harmonized val copy using style_map (so diff is non-zero even when HARMONIZE_VAL_TEST=False)
-# -------------------------
+
 def create_harmonized_val_vis(orig_val_dir: str, dest_val_dir: str, style_path: str):
     ensure_dir(dest_val_dir)
     for fn in list_images_in_dir(orig_val_dir):
@@ -253,14 +225,8 @@ def create_harmonized_val_vis(orig_val_dir: str, dest_val_dir: str, style_path: 
             except Exception as e2:
                 print(f"[VIS-HARM] failed copying {src_fp}: {e2}")
 
-# -------------------------
-# Comparison grid helpers (flat-directory variant)
-# -------------------------
+
 def select_pairs_flat(orig_dir: str, hm_dir: str, n_samples: int = 7) -> List[Tuple[str,str,str]]:
-    """
-    For flat image dirs (no classes), find matching filenames present in both folders.
-    Returns list of tuples (orig_path, hm_path, filename)
-    """
     if not os.path.isdir(orig_dir) or not os.path.isdir(hm_dir):
         return []
     orig_files = set(list_images_in_dir(orig_dir))
@@ -338,17 +304,11 @@ def make_comparison_grid_flat(original_dir: str, harmonized_dir: str, client_nam
         print("[VIS] failed saving comparison grid:", e)
         plt.close(fig)
 
-# -------------------------
-# Helper to build DataLoader from (images_dir, masks_dir) pairs expected by CVCDataset
-# CVCDataset should accept directories (img_dir, mask_dir, transform)
-# -------------------------
+
 def get_loader(img_dir, mask_dir, transform, batch_size=8, shuffle=True):
     ds = CVCDataset(img_dir, mask_dir, transform=transform)
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
 
-# -------------------------
-# Metrics / training functions (preserve your logic)
-# -------------------------
 def compute_metrics(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
     pred = (pred > 0.5).float()
@@ -386,15 +346,11 @@ def get_loss_fn(device):
     return smp.losses.DiceLoss(mode="binary", from_logits=True).to(device)
 
 def average_models_weighted(models, weights):
-    # weights are normalized already
     avg_sd = copy.deepcopy(models[0].state_dict())
     for k in avg_sd.keys():
         avg_sd[k] = sum(weights[i] * models[i].state_dict()[k] for i in range(len(models)))
     return avg_sd
 
-# -------------------------
-# Training / Eval
-# -------------------------
 def train_local(loader, model, loss_fn, opt):
     model.train()
     total_loss, metrics = 0.0, []
@@ -424,9 +380,7 @@ def evaluate(loader, model, loss_fn, split="Val"):
     print(f"{split}: " + " | ".join([f"{k}: {v:.4f}" for k,v in avg_metrics.items()]))
     return total_loss / max(1, len(loader.dataset)), avg_metrics
 
-# -------------------------
-# Plotting
-# -------------------------
+
 def plot_metrics(round_metrics, out_dir):
     rounds = list(range(1, len(round_metrics) + 1))
     # Dice_no_bg
@@ -445,16 +399,10 @@ def plot_metrics(round_metrics, out_dir):
     plt.xlabel("Global Round"); plt.ylabel("IoU"); plt.title("Per-client IoU"); plt.legend(); plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "iou_no_bg_unet.png")); plt.close()
 
-# -------------------------
-# Main FedAvg + AdaIN harmonization integration + comparison grid
-# -------------------------
+
 def main():
-    # Albumentations transforms
     tr_tf = A.Compose([A.Resize(IMG_SIZE,IMG_SIZE), A.Normalize(mean=[0]*3,std=[1]*3), ToTensorV2()])
     val_tf = tr_tf
-
-    # initialize global model
-    #global_model = DuckNet(input_channels=3, num_classes=1, num_filters=17).to(DEVICE)
     global_model = UNET(in_channels=3, out_channels=1).cuda()
     round_metrics = []
 
@@ -463,7 +411,6 @@ def main():
         local_models, weights = [], []
         total_sz = 0
 
-        # If harmonization enabled, create harmonized dirs for this round and use them
         if HARMONIZE:
             print("[HARM] creating harmonized directories for round", r+1)
             harmonized_train_imgs, harmonized_train_masks, style_map = create_harmonized_round(r+1, train_img_dirs, train_mask_dirs, out_base_dir=out_dir)
@@ -473,13 +420,11 @@ def main():
             harmonized_test_imgs = []
             harmonized_test_masks = []
 
-            # create per-client harmonized val/test dirs (either harmonized or copied) and ALWAYS create a visualization harmonized val folder (val_vis)
             for i in range(NUM_CLIENTS):
                 client_name = client_names[i] if i < len(client_names) else f"client{i}"
                 client_round_root = os.path.join(out_dir, f"harmonized_round_{r+1}", client_name)
                 ensure_dir(client_round_root)
 
-                # Val
                 val_dest_img_dir = os.path.join(client_round_root, "val_images")
                 val_dest_mask_dir = os.path.join(client_round_root, "val_masks")
                 ensure_dir(val_dest_img_dir); ensure_dir(val_dest_mask_dir)
@@ -502,7 +447,6 @@ def main():
                         for fn in list_images_in_dir(val_mask_dirs[i]):
                             shutil.copy2(os.path.join(val_mask_dirs[i], fn), os.path.join(val_dest_mask_dir, fn))
                 else:
-                    # copy as-is for training/eval, but create a separate val_vis dir for visualization
                     if os.path.isdir(val_img_dirs[i]):
                         for fn in list_images_in_dir(val_img_dirs[i]):
                             shutil.copy2(os.path.join(val_img_dirs[i], fn), os.path.join(val_dest_img_dir, fn))
@@ -546,7 +490,6 @@ def main():
                 harmonized_test_imgs.append(test_dest_img_dir)
                 harmonized_test_masks.append(test_dest_mask_dir)
 
-                # create a visual-only harmonized copy of val for grid (always)
                 val_vis_dir = os.path.join(out_dir, f"harmonized_round_{r+1}", "val_vis", client_name)
                 if os.path.exists(val_vis_dir):
                     shutil.rmtree(val_vis_dir)
@@ -555,14 +498,11 @@ def main():
                     create_harmonized_val_vis(val_img_dirs[i], val_vis_dir, style_path)
                 else:
                     ensure_dir(val_vis_dir)
-
-                # create comparison grid between original val and val_vis (visualization)
                 try:
                     make_comparison_grid_flat(val_img_dirs[i], val_vis_dir, client_name, os.path.join(out_dir, f"harmonized_round_{r+1}"), n_samples=7)
                 except Exception as e:
                     print(f"[VIS] failed making grid for {client_name}: {e}")
 
-            # use harmonized train/val/test dirs for training/eval according to HARMONIZE_VAL_TEST
             used_train_img_dirs = harmonized_train_imgs
             used_train_mask_dirs = harmonized_train_masks
             used_val_img_dirs = harmonized_val_imgs
@@ -578,13 +518,11 @@ def main():
             used_test_img_dirs = test_img_dirs
             used_test_mask_dirs = test_mask_dirs
 
-        # train per client
         for i in range(NUM_CLIENTS):
             local_model = copy.deepcopy(global_model).to(DEVICE)
             opt = optim.AdamW(local_model.parameters(), lr=1e-4)
             loss_fn = get_loss_fn(DEVICE)
 
-            # build loaders for this client from used_* lists
             train_loader = get_loader(used_train_img_dirs[i], used_train_mask_dirs[i], tr_tf, batch_size=8, shuffle=True)
             val_loader = get_loader(used_val_img_dirs[i], used_val_mask_dirs[i], val_tf, batch_size=8, shuffle=False)
 
@@ -596,7 +534,6 @@ def main():
             sz = len(train_loader.dataset) if hasattr(train_loader, 'dataset') else 0
             weights.append(sz); total_sz += sz
 
-        # FedAvg aggregation
         if total_sz == 0:
             print("Warning: total train size 0; skipping aggregation for this round")
         else:
@@ -604,7 +541,6 @@ def main():
             print("[FedAvg] Aggregating with normalized weights:", norm_weights)
             global_model.load_state_dict(average_models_weighted(local_models, norm_weights))
 
-        # Testing across clients
         rm = {}
         for i in range(NUM_CLIENTS):
             test_loader = get_loader(used_test_img_dirs[i], used_test_mask_dirs[i], val_tf, batch_size=8, shuffle=False)

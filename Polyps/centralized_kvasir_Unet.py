@@ -16,9 +16,6 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 DEVICE = "cuda"
 
-# -------------------------------
-# Metric functions
-# -------------------------------
 def compute_metrics(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
     pred = (pred > 0.5).float()
@@ -63,9 +60,6 @@ def aggregate_metrics(metrics_list):
     return agg
 
 
-# -------------------------------
-# Dataloaders
-# -------------------------------
 def get_loaders_train(dataset_class, train_img, train_mask, batch_size, transform, num_workers):
     train_ds = dataset_class(train_img, train_mask, transform=transform)
     train_loader = DataLoader(train_ds, batch_size=batch_size, num_workers=num_workers)
@@ -81,22 +75,13 @@ def get_loader_test(dataset_class, test_img, test_mask, transform):
     test_loader = DataLoader(test_ds)
     return test_loader
 
-
-# -------------------------------
-# Loss selector
-# -------------------------------
 def get_loss_fn(net, device):
     out_channels = net.conv.out_channels if hasattr(net, "conv") else net.outc.out_channels
     if out_channels == 1:
-        #return nn.BCEWithLogitsLoss().to(device)
         return smp.losses.DiceLoss(mode="binary", from_logits=True)
     else:
         return nn.CrossEntropyLoss().to(device)
 
-
-# -------------------------------
-# Train / Val / Test
-# -------------------------------
 def train(train_loader, model, optimizer, scheduler, loss_fn):
     loop = tqdm(train_loader)
     total_loss, total_correct = 0.0, 0.0
@@ -107,16 +92,15 @@ def train(train_loader, model, optimizer, scheduler, loss_fn):
         targets = targets.to(DEVICE)
         preds = model(data)
 
-        if preds.shape[1] == 1:  # binary case
+        if preds.shape[1] == 1:
             loss = loss_fn(preds, targets.unsqueeze(1).float())
-        else:  # multi-class case
+        else:
             loss = loss_fn(preds, targets.long())
 
         preds_label = torch.argmax(preds, dim=1) if preds.shape[1] > 1 else (torch.sigmoid(preds) > 0.5).long().squeeze(1)
         total_correct += (preds_label == targets).float().mean().item()
         total_loss += loss.item()
 
-        # ✅ Metrics (binary assumes channel dim for targets)
         if preds.shape[1] == 1:
             batch_metrics = compute_metrics(preds, targets.unsqueeze(1))
             all_metrics.append(batch_metrics)
@@ -147,9 +131,9 @@ def eval_performance(loader, model, loss_fn):
             y = y.to(DEVICE)
             predictions = model(x)
 
-            if predictions.shape[1] == 1:  # binary case
+            if predictions.shape[1] == 1:
                 loss = loss_fn(predictions, y.unsqueeze(1).float())
-            else:  # multi-class case
+            else:
                 loss = loss_fn(predictions, y.long())
 
             preds = torch.argmax(predictions, dim=1) if predictions.shape[1] > 1 else (torch.sigmoid(predictions) > 0.5).long().squeeze(1)
@@ -179,9 +163,9 @@ def test(loader, model, loss_fn):
             y = y.to(DEVICE)
             predictions = model(x)
 
-            if predictions.shape[1] == 1:  # binary case
+            if predictions.shape[1] == 1:
                 loss = loss_fn(predictions, y.unsqueeze(1).float())
-            else:  # multi-class case
+            else:
                 loss = loss_fn(predictions, y.long())
 
             preds = torch.argmax(predictions, dim=1) if predictions.shape[1] > 1 else (torch.sigmoid(predictions) > 0.5).long().squeeze(1)
@@ -199,10 +183,6 @@ def test(loader, model, loss_fn):
 
     return epoch_loss, epoch_acc, avg_metrics
 
-
-# -------------------------------
-# Utils
-# -------------------------------
 def print_results(mode, loss, acc, metrics):
     print(f"\n[{mode}] Loss: {loss:.4f} | Acc: {acc:.2f}%")
 
@@ -223,10 +203,6 @@ def print_results(mode, loss, acc, metrics):
         print()
 
 
-
-# -------------------------------
-# Main
-# -------------------------------
 def main():
     LEARNING_RATE = 1e-4
     BATCH_SIZE = 1
@@ -265,7 +241,6 @@ def main():
     val_loader = get_loaders_val(dataset_class, VAL_IMG_DIR, VAL_MASK_DIR, BATCH_SIZE, val_transform, NUM_WORKERS)
     test_loader = get_loader_test(dataset_class, TEST_IMG_DIR, TEST_MASK_DIR, val_transform)
 
-    # model = UNet_3Plus(in_channels=3, n_classes=2).cuda()
     model = UNET(in_channels=3, out_channels=1).cuda()
 
     for param in model.parameters():
@@ -276,7 +251,6 @@ def main():
     total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[INFO]: {total_trainable_params:,} trainable parameters.")
 
-    # ✅ use dynamic loss function
     loss_fn = get_loss_fn(model, DEVICE)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=5, T_mult=1, eta_min=1e-6)

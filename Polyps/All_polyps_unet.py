@@ -16,9 +16,7 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 DEVICE = "cuda"
 
-# -------------------------------
-# Metric functions (same as before)
-# -------------------------------
+
 def compute_metrics(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
     pred = (pred > 0.5).float()
@@ -62,9 +60,6 @@ def aggregate_metrics(metrics_list):
     return agg
 
 
-# -------------------------------
-# Dataset helpers
-# -------------------------------
 def build_concat_dataset(dataset_class, img_dirs, mask_dirs, transform=None):
     datasets = []
     for img_dir, mask_dir in zip(img_dirs, mask_dirs):
@@ -96,17 +91,9 @@ def get_loaders(dataset_class, train_img_dirs, train_mask_dirs,
 # Loss selector
 # -------------------------------
 def get_loss_fn(net, device):
-    #out_channels = net.conv.out_channels if hasattr(net, "conv") else net.outc.out_channels
-    #if out_channels == 1:
-        #return nn.BCEWithLogitsLoss().to(device)
      return smp.losses.DiceLoss(mode="binary", from_logits=True)
-    #else:
-        #return nn.CrossEntropyLoss().to(device)
 
 
-# -------------------------------
-# Train / Val / Test loops
-# -------------------------------
 def train(train_loader, model, optimizer, scheduler, loss_fn):
     loop = tqdm(train_loader)
     total_loss, total_correct = 0.0, 0.0
@@ -117,16 +104,15 @@ def train(train_loader, model, optimizer, scheduler, loss_fn):
         targets = targets.to(DEVICE)
         preds = model(data)
 
-        if preds.shape[1] == 1:  # binary case
+        if preds.shape[1] == 1:
             loss = loss_fn(preds, targets.unsqueeze(1).float())
-        else:  # multi-class case
+        else:
             loss = loss_fn(preds, targets.long())
 
         preds_label = torch.argmax(preds, dim=1) if preds.shape[1] > 1 else (torch.sigmoid(preds) > 0.5).long().squeeze(1)
         total_correct += (preds_label == targets).float().mean().item()
         total_loss += loss.item()
 
-        # ✅ Metrics (binary assumes channel dim for targets)
         if preds.shape[1] == 1:
             batch_metrics = compute_metrics(preds, targets.unsqueeze(1))
             all_metrics.append(batch_metrics)
@@ -157,9 +143,9 @@ def eval_performance(loader, model, loss_fn):
             y = y.to(DEVICE)
             predictions = model(x)
 
-            if predictions.shape[1] == 1:  # binary case
+            if predictions.shape[1] == 1:
                 loss = loss_fn(predictions, y.unsqueeze(1).float())
-            else:  # multi-class case
+            else:
                 loss = loss_fn(predictions, y.long())
 
             preds = torch.argmax(predictions, dim=1) if predictions.shape[1] > 1 else (torch.sigmoid(predictions) > 0.5).long().squeeze(1)
@@ -189,9 +175,9 @@ def test(loader, model, loss_fn):
             y = y.to(DEVICE)
             predictions = model(x)
 
-            if predictions.shape[1] == 1:  # binary case
+            if predictions.shape[1] == 1:
                 loss = loss_fn(predictions, y.unsqueeze(1).float())
-            else:  # multi-class case
+            else:
                 loss = loss_fn(predictions, y.long())
 
             preds = torch.argmax(predictions, dim=1) if predictions.shape[1] > 1 else (torch.sigmoid(predictions) > 0.5).long().squeeze(1)
@@ -210,9 +196,6 @@ def test(loader, model, loss_fn):
     return epoch_loss, epoch_acc, avg_metrics
 
 
-# -------------------------------
-# Utils
-# -------------------------------
 def print_results(mode, loss, acc, metrics):
     print(f"\n[{mode}] Loss: {loss:.4f} | Acc: {acc:.2f}%")
 
@@ -233,9 +216,7 @@ def print_results(mode, loss, acc, metrics):
         print()
 
 
-# -------------------------------
-# Main
-# -------------------------------
+
 def main():
     LEARNING_RATE = 1e-4
     BATCH_SIZE = 1
@@ -246,9 +227,7 @@ def main():
 
     dataset_class = CVCDataset
 
-    # -------------------------------
-    # Train/Val/Test dataset paths
-    # -------------------------------
+
     train_img_dirs = [
         r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\train\images",
         r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\images",
@@ -288,9 +267,7 @@ def main():
         r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\test\masks"
     ]
 
-    # -------------------------------
-    # Transforms
-    # -------------------------------
+
     val_transform = A.Compose([
         A.Resize(256, 256),
         A.Normalize(mean=[0.485, 0.456, 0.406],
@@ -312,10 +289,6 @@ def main():
         BATCH_SIZE, train_transform, val_transform, NUM_WORKERS
     )
 
-    # -------------------------------
-    # Model
-    # -------------------------------
-    #model = UNET(in_channels=3, out_channels=1).cuda()
     model = DuckNet(input_channels=3, num_classes=1, num_filters=34).cuda()
 
     for param in model.parameters():
@@ -330,9 +303,6 @@ def main():
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=5, T_mult=1, eta_min=1e-6)
 
-    # -------------------------------
-    # Training loop (same as before)
-    # -------------------------------
     best_iou = 0
     for epoch in range(NUM_EPOCHS):
         print(f"[INFO]: Epoch {epoch + 1} of {NUM_EPOCHS}")

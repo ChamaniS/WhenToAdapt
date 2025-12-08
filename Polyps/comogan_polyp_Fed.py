@@ -1,12 +1,4 @@
-# fl_polyp_seg_comogan.py
-"""
-Federated polyp segmentation (FedAvg) across NUM_CLIENTS with:
- - robust harmonization hook (stub simulating CoMoGAN using autocontrast+tweaks)
- - recursive image discovery (works when val/ contains class subfolders)
- - comparison grid saving for orig vs harmonized validation images (debug version)
- - non-interactive matplotlib backend
- - minimal changes from your original training/eval loop
-"""
+
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -32,11 +24,8 @@ import shutil
 # local imports (assumed present)
 # from models.UNET import UNET
 from models.DuckNet import DuckNet
-from dataset import CVCDataset   # must support (img_dir, mask_dir, transform)
+from dataset import CVCDataset
 
-# -------------------------
-# Settings (edit paths)
-# -------------------------
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_CLIENTS = 4
 LOCAL_EPOCHS = 12
@@ -47,9 +36,7 @@ start_time = time.time()
 out_dir = "Outputs_polyp_comogan"
 os.makedirs(out_dir, exist_ok=True)
 
-# -------------------------
-# Client dataset directories (update to your local paths)
-# -------------------------
+
 train_img_dirs = [
     r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
     r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\train\images",
@@ -88,15 +75,11 @@ test_mask_dirs = [
 ]
 client_names = ["Kvasir", "ETIS", "CVC-Colon","CVC-Clinic"]
 
-# -------------------------
-# Utility: recursive image discovery + comparison grids + harmonizer-stub
-# -------------------------
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
     return path
 
 def image_list_in_dir(d):
-    """Recursively collect image files under d (sorted)."""
     exts = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
     if not os.path.isdir(d):
         return []
@@ -108,12 +91,10 @@ def image_list_in_dir(d):
     return sorted(out)
 
 def select_val_pairs_for_comparison(orig_dir, hm_dir, n_samples=6):
-    """Pair by basename when possible; else pair by index."""
     orig = image_list_in_dir(orig_dir)
     hm = image_list_in_dir(hm_dir)
     if len(orig) == 0 or len(hm) == 0:
         return []
-    # map base->path
     orig_map = {}
     for p in orig:
         b = os.path.basename(p)
@@ -137,11 +118,6 @@ def select_val_pairs_for_comparison(orig_dir, hm_dir, n_samples=6):
     return pairs
 
 def make_comparison_grid_debug(orig_dir, hm_dir, client_name, out_base, n_samples=6):
-    """
-    Enhanced comparison grid:
-      - prints counts and numeric diffs for first n_samples
-      - saves: comparison_{client}.png (3 rows), comparison_{client}_blend.png (blend), comparison_{client}_diffheat.png
-    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -156,7 +132,6 @@ def make_comparison_grid_debug(orig_dir, hm_dir, client_name, out_base, n_sample
         return
 
     top_imgs, mid_imgs, diff_imgs, titles = [], [], [], []
-    # numeric summary accumulators for an optional CSV
     rows = []
     for orig_p, hm_p, fn in pairs:
         try:
@@ -210,8 +185,6 @@ def make_comparison_grid_debug(orig_dir, hm_dir, client_name, out_base, n_sample
     plt.savefig(out_png, bbox_inches="tight", dpi=150); plt.close(fig)
     print("[VIS] saved", out_png)
 
-
-    # Save summed-diff heatmap across pairs as a single image
     all_heat = np.zeros((IMG_SIZE, IMG_SIZE), dtype=np.float32)
     for i in range(n):
         all_heat += diff_imgs[i].sum(axis=2).astype(np.float32)
@@ -219,22 +192,11 @@ def make_comparison_grid_debug(orig_dir, hm_dir, client_name, out_base, n_sample
     plt.imshow(all_heat, cmap='magma', vmax=max(1, all_heat.max()))
     plt.title(f"Combined diff heatmap: {client_name}")
     plt.axis('off')
-    #out_heat = os.path.join(base, f"comparison_{client_name}_diffheat.png")
-    #plt.savefig(out_heat, bbox_inches="tight", dpi=150); plt.close(fig3)
-    #print("[VIS] saved", out_heat)
 
-    # print numeric table
     for r in rows:
         print(f"[VIS-stats] {r['file']}: max={r['max_diff']} mean={r['mean_diff']:.3f} nonzero_px={r['nonzero_pixels']}")
 
 def harmonize_client_validation(client_img_dir, client_name, out_base):
-    """
-    Improved stub:
-     - writes outputs to out_base/harmonized/<client_name>/val/
-     - appends suffix "_harm" to filenames so they never collide with originals
-     - logs a few example filenames and prints min/max differences for first few images (debug)
-    Replace with your CoMoGAN call; keep the filename suffix convention to avoid collision.
-    """
     import numpy as np
     from PIL import Image, ImageOps, ImageEnhance
     dst_base = ensure_dir(os.path.join(out_base, "harmonized", client_name, "val"))
@@ -275,9 +237,6 @@ def harmonize_client_validation(client_img_dir, client_name, out_base):
     print("[HARM] harmonized saved to", dst_base)
     return dst_base
 
-# -------------------------
-# Helpers: dataset loader and metrics (unchanged)
-# -------------------------
 def get_loader(img_dir, mask_dir, transform, batch_size=4, shuffle=True):
     ds = CVCDataset(img_dir, mask_dir, transform=transform)
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
@@ -325,9 +284,7 @@ def average_models_weighted(models, weights):
         avg_sd[k] = tensor
     return avg_sd
 
-# -------------------------
-# Training / Eval / Plotting (mostly your original code)
-# -------------------------
+
 def train_local(loader, model, loss_fn, opt):
     model.train()
     total_loss, metrics = 0.0, []
@@ -341,7 +298,6 @@ def train_local(loader, model, loss_fn, opt):
             metrics.append(compute_metrics(preds.detach(), target))
     avg_metrics = average_metrics(metrics)
     print("Train: " + " | ".join([f"{k}: {v:.4f}" for k,v in avg_metrics.items()]))
-    # normalize by number of batches: return per-sample approx loss (same behaviour as original)
     return total_loss / max(1, len(loader.dataset)), avg_metrics
 
 @torch.no_grad()
@@ -360,7 +316,6 @@ def evaluate(loader, model, loss_fn, split="Val"):
 
 def plot_metrics(round_metrics, out_dir):
     rounds = list(range(1, len(round_metrics) + 1))
-    # Dice_no_bg
     plt.figure()
     for cid in range(NUM_CLIENTS):
         vals = [rm.get(f"client{cid}_dice_no_bg", 0) for rm in round_metrics]
@@ -368,7 +323,6 @@ def plot_metrics(round_metrics, out_dir):
     plt.xlabel("Global Round"); plt.ylabel("Dice"); plt.title("Per-client Dice")
     plt.legend(); plt.tight_layout(); plt.savefig(os.path.join(out_dir, "dice_no_bg_ducknetbs4.png")); plt.close()
 
-    # IoU_no_bg
     plt.figure()
     for cid in range(NUM_CLIENTS):
         vals = [rm.get(f"client{cid}_iou_no_bg", 0) for rm in round_metrics]
@@ -376,9 +330,6 @@ def plot_metrics(round_metrics, out_dir):
     plt.xlabel("Global Round"); plt.ylabel("IoU"); plt.title("Per-client IoU ")
     plt.legend(); plt.tight_layout(); plt.savefig(os.path.join(out_dir, "iou_no_bg_ducknetbs4.png")); plt.close()
 
-# -------------------------
-# Main FedAvg with harmonization visuals
-# -------------------------
 def main():
     tr_tf = A.Compose([A.Resize(IMG_SIZE,IMG_SIZE), A.Normalize(mean=[0]*3,std=[1]*3), ToTensorV2()])
     val_tf = tr_tf
@@ -401,42 +352,29 @@ def main():
             val_loader = get_loader(val_img_dirs[i], val_mask_dirs[i], val_tf, shuffle=False)
 
             print(f"[Client {client_names[i]}]")
-
-            # (Optional) run harmonization of client validation images and create debug grid before local eval
-            # This writes to out_dir/harmonized/<client>/val/ and comparison grid(s) to out_dir/ComparisonGrid/
             try:
                 hm_dir = harmonize_client_validation(val_img_dirs[i], client_names[i], out_dir)
                 make_comparison_grid_debug(val_img_dirs[i], hm_dir, client_names[i], out_dir, n_samples=6)
-                #save_comparison_grid_round_copy(client_names[i], out_dir, r+1)
             except Exception as e:
                 print("[HARM] error/harmonize skipped:", e)
 
             train_local(train_loader, local_model, loss_fn, opt)
 
-            # Evaluate on local validation (model after local training)
             evaluate(val_loader, local_model, loss_fn, split="Val")
 
             local_models.append(local_model)
             sz = len(train_loader.dataset); weights.append(sz); total_sz += sz
 
-        # FedAvg
         norm_weights = [w/total_sz for w in weights]
         avg_sd = average_models_weighted(local_models, norm_weights)
         global_model.load_state_dict(avg_sd)
 
-        # ---- Testing across clients ----
         rm = {}
         for i in range(NUM_CLIENTS):
             test_loader = get_loader(test_img_dirs[i], test_mask_dirs[i], val_tf, shuffle=False)
             print(f"[Client {client_names[i]}] Test")
             _, test_metrics = evaluate(test_loader, global_model, get_loss_fn(DEVICE), split="Test")
             rm[f"client{i}_dice_no_bg"] = test_metrics.get("dice_no_bg", 0.0)
-            rm[f"client{i}_iou_no_bg"] = test_metrics.get("iou_no_bg", 0.0)
-
-            # optionally create grids for test set as well (commented by default)
-            # hm_test_dir = harmonize_client_validation(test_img_dirs[i], client_names[i], out_dir)
-            # make_comparison_grid_debug(test_img_dirs[i], hm_test_dir, client_names[i], out_dir, n_samples=6)
-            # save_comparison_grid_round_copy(client_names[i], out_dir, r+1)
 
         round_metrics.append(rm)
         plot_metrics(round_metrics, out_dir)
