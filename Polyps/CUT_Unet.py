@@ -1,5 +1,4 @@
 # cycle_gan_harmonize_and_fedavg.py
-# Reworked: replaced CycleGAN harmonization with CUT (Contrastive Unpaired Translation).
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import os, copy, time, random, math, shutil, stat
@@ -19,50 +18,36 @@ from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
 
-# import your existing modules (assumed present)
 from models.unet import UNET
-from dataset import CVCDataset   # must support (img_dir, mask_dir, transform) and optionally return_filename=True
+from dataset import CVCDataset
 
-# -------------------------
-# Compatibility helper for older Python (<3.8)
-# -------------------------
 def _on_rm_error(func, path, exc_info):
-    """Error handler for rmtree: change file to writable and retry."""
     os.chmod(path, stat.S_IWRITE)
     func(path)
 
 def copy_tree_force(src, dst):
-    """
-    Copy directory tree from src -> dst.
-    If dst exists, remove it entirely first (safe fallback for Python <3.8).
-    """
     if not os.path.exists(src):
         raise FileNotFoundError(f"Source not found: {src}")
     if os.path.exists(dst):
         shutil.rmtree(dst, onerror=_on_rm_error)
     shutil.copytree(src, dst)
 
-# -------------------------
-# Settings
-# -------------------------
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_CLIENTS = 4
-LOCAL_EPOCHS = 12   # federated local epochs
+LOCAL_EPOCHS = 12
 COMM_ROUNDS = 10
 
 CUT_EPOCHS =60
 BATCH_CUT = 4
 LAMBDA_NCE = 1.0
 NCE_NUM_PATCHES = 256
-NCE_LAYERS = [1, 2, 3, 4]  # which encoder layers to use (1-based in this model)
+NCE_LAYERS = [1, 2, 3, 4]
 LR_G = 2e-4
 LR_D = 2e-4
 OUT_DIR = "Outputs"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# -------------------------
-# Client dataset directories (same as your original values)
-# -------------------------
+
 train_img_dirs = [
     r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
     r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\train\images",
@@ -102,18 +87,13 @@ test_mask_dirs = [
 client_names = ["Kvasir", "ETIS", "CVC-Colon","CVC-Clinic"]
 reference_idx = 0  # Kvasir(0) as canonical reference
 
-# -------------------------
-# Optional: path to pre-trained reference segmenter (UNET) for seg-consistency loss
-REF_SEGMENTER_PATH = os.path.join(OUT_DIR, "ref_segmenter.pth")  # change if you have it, else leave as-is
 
-# -------------------------
-# Perceptual / seg loss hyperparams (kept for optional usage)
+REF_SEGMENTER_PATH = os.path.join(OUT_DIR, "ref_segmenter.pth")
+
+
 LAMBDA_PERCEPTUAL = 0.05
 LAMBDA_SEG = 5.0
 
-# -------------------------
-# Simple image-only dataset for unpaired CUT training
-# -------------------------
 class ImageFolderSimple(Dataset):
     def __init__(self, folder, size=(224,224), augment=False):
         self.files = sorted([p for p in glob(os.path.join(folder, "*")) if p.lower().endswith(('.png','.jpg','.jpeg'))])
@@ -134,10 +114,6 @@ class ImageFolderSimple(Dataset):
         t = self.base_trans(img)  # tensor CxHxW [0..1]
         return t
 
-# -------------------------
-# CUT Generator (encoder-decoder). Encoder returns multiscale features for PatchNCE.
-# Output range: tanh -> [-1,1] (keeps harmonize_folder_with_generator interface)
-# -------------------------
 def enc_block(in_ch, out_ch, down=True):
     if down:
         return nn.Sequential(
@@ -155,7 +131,6 @@ def enc_block(in_ch, out_ch, down=True):
 class CUTGenerator(nn.Module):
     def __init__(self, in_ch=3, ngf=64, n_down=4):
         super().__init__()
-        # encoder layers (we'll keep outputs from several layers)
         self.enc1 = nn.Sequential(nn.Conv2d(in_ch, ngf, 7, 1, 3, bias=False), nn.InstanceNorm2d(ngf), nn.ReLU(True))
         self.enc2 = enc_block(ngf, ngf*2, down=True)   # /2
         self.enc3 = enc_block(ngf*2, ngf*4, down=True) # /4
@@ -194,14 +169,8 @@ class CUTGenerator(nn.Module):
         out = self.decode(feats)
         return out, feats  # return output and encoder features
 
-# -------------------------
-# PatchNCE (InfoNCE) loss and projection heads
-# -------------------------
+
 class PatchSampleF(nn.Module):
-    """
-    Projection MLP that maps feature patches to vectors for contrastive loss.
-    Mirrors official CUT implementation approach: small MLP per layer.
-    """
     def __init__(self, nc, inner_dim=256):
         super().__init__()
         self.net = nn.Sequential(
@@ -220,9 +189,6 @@ class PatchNCELoss(nn.Module):
         self.cross_entropy_loss = nn.CrossEntropyLoss()
 
     def forward(self, q, k):
-        # q,k shape: [N, C] where N = batch*num_patches_total, C = dim
-        # We'll compute logits: q @ k.T, positives are diagonal elements (matching patches)
-        # For numerical stability, normalize vectors
         q = nn.functional.normalize(q, dim=1)
         k = nn.functional.normalize(k, dim=1)
         logits = torch.matmul(q, k.T) / self.temperature  # [N,N]
@@ -230,9 +196,7 @@ class PatchNCELoss(nn.Module):
         loss = self.cross_entropy_loss(logits, labels)
         return loss
 
-# -------------------------
-# Discriminator (PatchGAN) - reuse simple NLayerDiscriminator style but lighter
-# -------------------------
+
 class PatchDiscriminator(nn.Module):
     def __init__(self, in_ch=3, ndf=64):
         super().__init__()
@@ -244,9 +208,6 @@ class PatchDiscriminator(nn.Module):
         )
     def forward(self, x): return self.model(x)
 
-# -------------------------
-# Perceptual (VGG) features helper (kept)
-# -------------------------
 def make_vgg16_features(device):
     vgg = tv_models.vgg16(pretrained=True).features.to(device).eval()
     for p in vgg.parameters(): p.requires_grad = False
@@ -261,9 +222,7 @@ def vgg_feature_list(vgg, x, layers=(3,8,15)):
             feats.append(out)
     return feats
 
-# -------------------------
-# CUT training: one-sided G: A->B with PatchNCE contrastive loss
-# -------------------------
+
 def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVICE,
               lambda_nce=LAMBDA_NCE, nce_layers=NCE_LAYERS, n_patches=NCE_NUM_PATCHES,
               lr_g=LR_G, lr_d=LR_D, batch_size=BATCH_CUT, ref_segmenter=None):
@@ -271,22 +230,17 @@ def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVI
     dsA = ImageFolderSimple(domainA_dir, size=(224,224), augment=True)
     dsB = ImageFolderSimple(domainB_dir, size=(224,224), augment=True)
 
-    # Balanced sampling
     max_samples = max(len(dsA), len(dsB))
     samplerA = RandomSampler(dsA, replacement=True, num_samples=max_samples)
     samplerB = RandomSampler(dsB, replacement=True, num_samples=max_samples)
     loaderA = DataLoader(dsA, batch_size=batch_size, sampler=samplerA, drop_last=True, num_workers=2)
     loaderB = DataLoader(dsB, batch_size=batch_size, sampler=samplerB, drop_last=True, num_workers=2)
 
-    # networks
     G = CUTGenerator().to(device)
     D = PatchDiscriminator().to(device)
     G.apply(weights_init_normal) if 'weights_init_normal' in globals() else None
     D.apply(weights_init_normal) if 'weights_init_normal' in globals() else None
 
-    # projection heads per layer
-    # Map encoder layers indices to channel counts
-    # For our CUTGenerator enc layers: f1,f2,f3,f4,f5 channel sizes ~ [ngf, ngf*2, ngf*4, ngf*8, ngf*8]
     ngf = 64
     layer_nc = {1: ngf, 2: ngf*2, 3: ngf*4, 4: ngf*8, 5: ngf*8}
     nce_mlps = {}
@@ -297,15 +251,12 @@ def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVI
     nce_loss = PatchNCELoss().to(device)
     criterion_GAN = nn.MSELoss().to(device)
 
-    # collect MLP params into a flat list
     mlp_params = []
     for m in nce_mlps.values():
         mlp_params += list(m.parameters())
 
-    # now create optimizer over generator + mlp params
     opt_G = optim.Adam(list(G.parameters()) + mlp_params, lr=lr_g, betas=(0.5, 0.999))
     opt_D = optim.Adam(D.parameters(), lr=lr_d, betas=(0.5,0.999))
-    # optionally VGG for perceptual
     vgg = make_vgg16_features(device) if (LAMBDA_PERCEPTUAL > 0 and ref_segmenter is None) else None
 
     real_label = 0.9
@@ -324,17 +275,13 @@ def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVI
             real_A = real_A.to(device)  # [0,1]
             real_B = real_B.to(device)
 
-            # map A to B via G -> output in [-1,1]
-            fake_B, feats_A = G((real_A * 2.0) - 1.0)  # feed scaled input to produce consistent range
-            # decode uses internal encoding; but we need encoder features for fake_B too
-            # run encoder on fake_B (note: fake_B in [-1,1], map to [0,1] for encoder expectation)
+            fake_B, feats_A = G((real_A * 2.0) - 1.0)
             fake_B_for_enc = (fake_B + 1.0) / 2.0
 
             feats_fake = G.encode(fake_B_for_enc)
 
-            # --------- Train Discriminator ---------
             opt_D.zero_grad()
-            pred_real = D(real_B * 2.0 - 1.0)  # scale real_B to [-1,1]
+            pred_real = D(real_B * 2.0 - 1.0)
             valid_tensor = torch.full_like(pred_real, real_label, device=device)
             loss_D_real = criterion_GAN(pred_real, valid_tensor)
             pred_fake = D(fake_B.detach())
@@ -344,23 +291,17 @@ def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVI
             loss_D.backward()
             opt_D.step()
 
-            # --------- Train Generator (GAN + PatchNCE) ---------
             opt_G.zero_grad()
-            # GAN loss (make fake look like real)
             pred_fake_for_g = D(fake_B)
             valid_tensor = torch.full_like(pred_fake_for_g, real_label, device=device)
             loss_G_GAN = criterion_GAN(pred_fake_for_g, valid_tensor)
 
-            # PatchNCE: for selected layers, sample patches and compute InfoNCE
             loss_NCE = 0.0
-            # For each selected encoder layer index, get feature maps:
-            # feats_A and feats_fake are lists [f1,f2,f3,f4,f5] corresponding to layers 1..5
             for l in nce_layers:
                 idx = l - 1
                 if idx >= len(feats_A) or idx < 0: continue
-                feat_q = feats_A[idx]  # [B,C,H,W] from input
-                feat_k = feats_fake[idx]  # [B,C,H,W] from fake
-                # project to vectors
+                feat_q = feats_A[idx]
+                feat_k = feats_fake[idx]
                 proj = nce_mlps[str(l)]
                 q_proj = proj(feat_q)  # [B,dim,H,W]
                 k_proj = proj(feat_k)
@@ -420,9 +361,7 @@ def train_cut(domainA_dir, domainB_dir, save_dir, epochs=CUT_EPOCHS, device=DEVI
     print(f"[CUT] finished and saved to {save_dir}")
     return G.cpu()
 
-# -------------------------
-# Apply generator (expects generator outputs in [-1,1]) to all images in src_dir and save to dst_dir
-# -------------------------
+
 def harmonize_folder_with_generator(generator, src_dir, dst_dir, mask_src_dir=None, mask_dst_dir=None, device=DEVICE, size=(224,224)):
     os.makedirs(dst_dir, exist_ok=True)
     if mask_src_dir and mask_dst_dir:
@@ -433,7 +372,7 @@ def harmonize_folder_with_generator(generator, src_dir, dst_dir, mask_src_dir=No
     with torch.no_grad():
         for p in sorted([f for f in glob(os.path.join(src_dir, "*")) if f.lower().endswith(('.png','.jpg','.jpeg'))]):
             img = Image.open(p).convert('RGB')
-            inp = tf(img).unsqueeze(0).to(device) * 2.0 - 1.0   # Scale to [-1,1] as generator expects tanh output
+            inp = tf(img).unsqueeze(0).to(device) * 2.0 - 1.0
             out, _ = generator(inp)
             out = (out.squeeze(0).detach().cpu().clamp(-1,1) + 1.0) / 2.0  # [0..1]
             out_img = T.ToPILImage()(out)
@@ -453,9 +392,7 @@ def harmonize_folder_with_generator(generator, src_dir, dst_dir, mask_src_dir=No
                             shutil.copy(alt, os.path.join(mask_dst_dir, base + ext))
                             break
 
-# -------------------------
-# Your existing preprocessing / transforms
-# -------------------------
+
 tr_tf = A.Compose([
     A.Resize(224, 224),
     A.Normalize(mean=[0] * 3, std=[1] * 3),
@@ -464,9 +401,7 @@ tr_tf = A.Compose([
 val_tf = A.Compose([A.Resize(224, 224), A.Normalize(mean=[0] * 3, std=[1] * 3), ToTensorV2()])
 visual_val_tf = A.Compose([A.Resize(224, 224)])
 
-# -------------------------
-# Reuse your helpers for saving/visualization and training/eval (copied/adapted)
-# -------------------------
+
 def _unnormalize_image(tensor, mean=(0.485,0.456,0.406), std=(0.229,0.224,0.225)):
     arr = tensor.cpu().numpy()
     if arr.ndim == 3:
@@ -483,7 +418,6 @@ def _mask_to_uint8(mask_tensor):
 def ensure_dir(path): os.makedirs(path, exist_ok=True)
 def save_image(arr, path): Image.fromarray(arr).save(path)
 
-# save_transformed_samples identical functionality (keep as earlier)
 def save_transformed_samples(img_dir, mask_dir, transform, client_name, out_base, n_samples=8, prefix="harmonized"):
     ds = CVCDataset(img_dir, mask_dir, transform=transform)
     dest = os.path.join(out_base, f"{client_name}", prefix)
@@ -511,7 +445,6 @@ def save_transformed_samples(img_dir, mask_dir, transform, client_name, out_base
             m_arr = _mask_to_uint8(mask_t)
             save_image(m_arr, os.path.join(dest, f"{client_name}_mask_{i}.png"))
 
-# save_test_predictions (slightly adapted)
 def save_test_predictions(global_model, test_loader, client_name, out_base=None, round_num=None, max_to_save=16, device_arg=None):
     if out_base is None: out_base = OUT_DIR
     device = DEVICE if device_arg is None else device_arg
@@ -554,7 +487,6 @@ def save_test_predictions(global_model, test_loader, client_name, out_base=None,
             if saved >= max_to_save: break
     print(f"Saved {saved} prediction masks for {client_name} in {latest_dir}")
 
-# evaluation/training functions (identical to yours)
 def compute_metrics(pred, target, smooth=1e-6):
     pred = torch.sigmoid(pred)
     pred = (pred > 0.5).float()
@@ -576,7 +508,6 @@ def compute_metrics(pred, target, smooth=1e-6):
         intersection = (pred * target).sum().item()
         dice_no_bg = (2 * intersection + smooth) / (pred.sum().item() + target.sum().item() + smooth)
         iou_no_bg = (intersection + smooth) / (pred.sum().item() + target.sum().item() - intersection + smooth)
-    # clamp just in case numerical issues
     dice_no_bg = max(0.0, min(1.0, dice_no_bg))
     iou_no_bg = max(0.0, min(1.0, iou_no_bg))
     dice_with_bg = max(0.0, min(1.0, dice_with_bg))
@@ -648,7 +579,6 @@ def evaluate(loader, model, loss_fn, split="Val"):
     print(f"{split}: " + " | ".join([f"{k}: {v:.4f}" for k,v in (avg_metrics or {}).items()]))
     return avg_loss, avg_metrics
 
-# plotting (same as before)
 def plot_metrics(round_metrics, out_dir):
     rounds = list(range(1, len(round_metrics) + 1))
     plt.figure()
@@ -664,11 +594,7 @@ def plot_metrics(round_metrics, out_dir):
     plt.xlabel("Global Round"); plt.ylabel("IoU"); plt.title("Per-client IoU"); plt.legend(); plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "iou_no_bg_cut.png")); plt.close()
 
-# -------------------------
-# Main: Train CUTs per client (A!=reference) -> harmonize -> FedAvg training
-# -------------------------
 def main():
-    # load optional reference segmenter if available
     ref_segmenter = None
     if os.path.exists(REF_SEGMENTER_PATH):
         print("[HARM] Loading reference segmenter for seg-consistency loss from:", REF_SEGMENTER_PATH)
@@ -681,8 +607,7 @@ def main():
     else:
         print("[HARM] No reference segmenter found at REF_SEGMENTER_PATH; seg-consistency loss will be skipped.")
 
-    # 1) Train CUTs for each non-reference client mapping client -> reference
-    cut_models = {}  # store generators for reuse
+    cut_models = {}
     for i in range(NUM_CLIENTS):
         if i == reference_idx:
             print(f"[HARM] Skipping CUT for reference client {client_names[i]}")
@@ -691,7 +616,6 @@ def main():
         b_dir = train_img_dirs[reference_idx]
         save_dir = os.path.join(OUT_DIR, "CUT", f"{client_names[i]}_to_{client_names[reference_idx]}")
         os.makedirs(save_dir, exist_ok=True)
-        # if final checkpoint exists, skip training and load
         final_ckpt = os.path.join(save_dir, "cut_final.pth")
         if os.path.exists(final_ckpt):
             G = CUTGenerator()
@@ -706,7 +630,6 @@ def main():
                           ref_segmenter=ref_segmenter)
             cut_models[i] = G.cpu()
 
-    # 2) Apply forward generators to harmonize each non-reference client's train/val/test (masks copied as-is)
     hist_base = os.path.join(OUT_DIR, "CUT_Harmonized")
     hm_train_dirs = []
     hm_train_mask_dirs = []
@@ -717,14 +640,12 @@ def main():
     for i in range(NUM_CLIENTS):
         cname = client_names[i]
         if i == reference_idx:
-            # reference: use original dirs unchanged
             dst_train = os.path.join(hist_base, cname, "train_images")
             dst_val = os.path.join(hist_base, cname, "val_images")
             dst_test = os.path.join(hist_base, cname, "test_images")
             dst_train_mask = os.path.join(hist_base, cname, "train_masks")
             dst_val_mask = os.path.join(hist_base, cname, "val_masks")
             dst_test_mask = os.path.join(hist_base, cname, "test_masks")
-            # use copy_tree_force to be safe on older Python
             copy_tree_force(train_img_dirs[i], dst_train)
             copy_tree_force(val_img_dirs[i], dst_val)
             copy_tree_force(test_img_dirs[i], dst_test)
@@ -748,19 +669,16 @@ def main():
 
     print("[HARM] Harmonization complete. Harmonized datasets written under:", hist_base)
 
-    # 3) Save harmonized/augmented samples and comparison grids before training
     visuals_base = os.path.join(OUT_DIR, "HarmonizedSamples_CUT")
     for i in range(NUM_CLIENTS):
         cname = client_names[i]
         save_transformed_samples(hm_val_dirs[i], hm_val_mask_dirs[i], val_tf, cname, visuals_base, n_samples=7, prefix="harmonized")
         save_transformed_samples(hm_train_dirs[i], hm_train_mask_dirs[i], tr_tf, cname, visuals_base, n_samples=7, prefix="augmented")
-        # simple comparison grid: original val vs harmonized val
         try:
             make_comparison_grid_and_histograms_updated_original_vs_hm(val_img_dirs[i], hm_val_dirs[i], cname, visuals_base)
         except Exception as e:
             print(f"[WARN] Could not make comparison grid for {cname}: {e}")
 
-    # 4) Federated training (FedAvg) on harmonized images
     global_model = UNET(in_channels=3, out_channels=1).to(DEVICE)
     round_metrics = []
     for r in range(COMM_ROUNDS):
@@ -788,13 +706,11 @@ def main():
             _, test_metrics = evaluate(test_loader, global_model, get_loss_fn(DEVICE), split="Test")
             rm[f"client{i}_dice_no_bg"] = test_metrics.get("dice_no_bg", 0)
             rm[f"client{i}_iou_no_bg"] = test_metrics.get("iou_no_bg", 0)
-            # Save only latest predictions per client (this will overwrite previous round's 'latest' folder)
             save_test_predictions(global_model, test_loader, client_names[i], out_base=OUT_DIR, round_num=(r+1), max_to_save=int(len(test_loader.dataset)), device_arg=DEVICE)
         round_metrics.append(rm)
         plot_metrics(round_metrics, OUT_DIR)
     print("Finished FedAvg on harmonized data.")
 
-# additional helper for comparison grid original vs hm (small)
 def make_comparison_grid_and_histograms_updated_original_vs_hm(original_dir, hm_dir, client_name, out_base, n_samples=7):
     base_dest = os.path.join(out_base, "ComparisonGrid", client_name)
     ensure_dir(base_dest); diffs_dest = os.path.join(base_dest, "diffs"); ensure_dir(diffs_dest)
@@ -829,7 +745,7 @@ def make_comparison_grid_and_histograms_updated_original_vs_hm(original_dir, hm_
     plt.tight_layout(); plt.savefig(os.path.join(base_dest, f"comparison_{client_name}.png")); plt.close()
     print(f"Saved comparison grid for {client_name} at {base_dest}")
 
-# get_loader wrapper to request filenames if CVVDataset supports return_filename
+
 def get_loader(img_dir, mask_dir, transform, batch_size=8, shuffle=True, return_filename=True):
     try:
         ds = CVCDataset(img_dir, mask_dir, transform=transform, return_filename=return_filename)
@@ -838,7 +754,7 @@ def get_loader(img_dir, mask_dir, transform, batch_size=8, shuffle=True, return_
         return_filename = False
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
 
-# small helper: reuse CycleGAN weights init if present in original file
+
 def weights_init_normal(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:

@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from models.UNET import UNET
-from dataset import CVCDataset   # must support (img_dir, mask_dir, transform)
+from dataset import CVCDataset
 
 # -------------------------
 # Settings
@@ -173,10 +173,7 @@ def get_loss_fn(device):
     return smp.losses.DiceLoss(mode="binary", from_logits=True).to(device)
 
 def average_models_weighted(models, weights):
-    """
-    Average only floating tensors (parameters and floating buffers). Avoids non-float counters.
-    Returns a dict of CPU float32 tensors for float items and original for non-float.
-    """
+
     avg_sd = copy.deepcopy(models[0].state_dict())
     for k in list(avg_sd.keys()):
         t0 = avg_sd[k]
@@ -192,17 +189,12 @@ def average_models_weighted(models, weights):
             avg_sd[k] = t0  # leave non-float as-is
     return avg_sd
 
-# -------------------------
-# I/O helpers for saving masks
-# -------------------------
+
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 def _mask_to_uint8(mask_tensor):
-    """
-    Accepts a torch tensor of shape (1,H,W) or (H,W) or (C,H,W) with values {0,1} or floats in [0,1].
-    Returns a HxW uint8 numpy array with 0 or 255 values.
-    """
+
     if torch.is_tensor(mask_tensor):
         mt = mask_tensor.squeeze().cpu().numpy()  # now HxW
     else:
@@ -223,11 +215,7 @@ def save_image(np_arr, path):
 # Save test predictions (keeps only latest per client)
 # -------------------------
 def save_test_predictions(model, test_loader, client_name, out_base, round_num=None, device_arg=None):
-    """
-    Save predicted masks (binary PNGs) for a client, but keep ONLY the latest results.
-    Writes to: out_base/TestPreds/<client_name>/latest/
-    Each call clears that client's 'latest' folder before saving so only the newest masks are present.
-    """
+
     if device_arg is None:
         device = DEVICE
     else:
@@ -236,12 +224,11 @@ def save_test_predictions(model, test_loader, client_name, out_base, round_num=N
     model.eval()
     latest_dir = os.path.join(out_base, "TestPreds", client_name, "latest")
 
-    # Clear latest dir then recreate (keeps only the latest saved predictions for that client)
+
     if os.path.exists(latest_dir):
         shutil.rmtree(latest_dir)
     ensure_dir(latest_dir)
 
-    # Try to obtain dataset filenames (best-effort) to preserve ordering/names
     dataset_filenames = None
     try:
         ds = test_loader.dataset
@@ -258,17 +245,15 @@ def save_test_predictions(model, test_loader, client_name, out_base, round_num=N
     saved = 0
     with torch.no_grad():
         for batch_idx, batch in enumerate(test_loader):
-            # accept (data,target,filenames) or (data,target)
+
             if isinstance(batch, (list, tuple)) and len(batch) == 3:
                 data, target, fnames = batch
             elif isinstance(batch, (list, tuple)) and len(batch) >= 2:
                 data, target = batch[0], batch[1]
                 fnames = None
             else:
-                # don't crash on unexpected formats; skip this batch
                 continue
 
-            # standardize target dims (best-effort)
             try:
                 if target.dim() == 3:
                     target = target.unsqueeze(1)
@@ -284,11 +269,6 @@ def save_test_predictions(model, test_loader, client_name, out_base, round_num=N
             for b in range(bsz):
                 mask_t = bin_mask[b].cpu()
                 mask_arr = _mask_to_uint8(mask_t)
-
-                # Choose filename priority:
-                # 1) fnames returned in batch
-                # 2) dataset_filenames if present (using global index)
-                # 3) fallback client_pred_batch_idx_b.png
                 if fnames is not None:
                     try:
                         orig_name = fnames[b]
@@ -415,24 +395,20 @@ def main():
     global_model = UNET(in_channels=3, out_channels=1).to(DEVICE)
     round_metrics = []
 
-    # ---------- FedAdam / FedAvg config ----------
-    SAVE_PREDICTIONS = True    # toggle saving test predictions
-    USE_FEDAVG = False         # True -> simple FedAvg; False -> FedAdam
-    server_lr = 0.05           # start small
+    SAVE_PREDICTIONS = True
+    USE_FEDAVG = False
+    server_lr = 0.05
     beta1 = 0.9
     beta2 = 0.99
-    tau = 1e-2                 # dampener in denominator
+    tau = 1e-2
     eps = 1e-8
     server_step = 0
 
-    # clipping thresholds
     max_param_update = 0.05
     max_global_update_norm = 50.0
 
-    # optional per-client delta clipping (pre-aggregation)
     per_client_clip = None  # set float e.g. 5.0 to clip each client's delta norm before averaging
 
-    # initialize server m/v (CPU float32) for all keys (floats and non-floats OK)
     server_m = {k: torch.zeros_like(v.cpu(), dtype=torch.float32) for k, v in global_model.state_dict().items()}
     server_v = {k: torch.zeros_like(v.cpu(), dtype=torch.float32) for k, v in global_model.state_dict().items()}
 
@@ -462,13 +438,8 @@ def main():
             weights.append(sz)
             total_sz += sz
 
-        # compute normalized weights
         norm_weights = [w / total_sz for w in weights]
-
-        # compute weighted average state (only floats will be averaged)
         avg_state = average_models_weighted(local_models, norm_weights)
-
-        # compute per-client deltas if we want to support per-client clipping (optional)
         global_sd_cpu = {k: v.cpu() for k, v in global_model.state_dict().items()}
 
         if per_client_clip is not None:
@@ -507,13 +478,11 @@ def main():
                 if torch.is_tensor(v) and v.dtype.is_floating_point:
                     avg_delta[k] = (v.to(torch.float32) - global_sd_cpu[k].to(torch.float32)).clone()
 
-        # DIAGNOSTIC: positive fraction BEFORE aggregation (local models)
         for i, lm in enumerate(local_models):
             test_loader = get_loader(test_img_dirs[i], test_mask_dirs[i], val_tf, shuffle=False)
             pf = positive_fraction(test_loader, lm)
             print(f"[Before Agg] Client {client_names[i]} LOCAL pos_frac: {pf:.6f}")
 
-        # SERVER UPDATE (FedAvg or FedAdam)
         if USE_FEDAVG:
             for k, delta in avg_delta.items():
                 global_sd_cpu[k] = global_sd_cpu[k].to(torch.float32) + delta.to(torch.float32)

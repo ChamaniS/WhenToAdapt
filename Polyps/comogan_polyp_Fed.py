@@ -2,7 +2,6 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-# ensure matplotlib doesn't require an X display
 import matplotlib
 matplotlib.use("Agg")
 
@@ -21,7 +20,6 @@ from PIL import Image, ImageOps, ImageEnhance
 import numpy as np
 import shutil
 
-# local imports (assumed present)
 # from models.UNET import UNET
 from models.DuckNet import DuckNet
 from dataset import CVCDataset
