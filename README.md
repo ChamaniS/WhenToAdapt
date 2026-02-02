@@ -34,8 +34,8 @@ pip install -r requirements.txt
 ```
 
 ## Datasets
-•	Use case 1: Federated polyp segmentation -polyp & background [Kvasir-SEG (1000 samples), CVC-ClinicDB (612 samples), CVC-ColonDB (380 samples), ETIS-Larib (196 samples)]
-•	Use case 2: Tuberculosis CXR classification- positive or normal [Shenzhen Hospital CXR set (662 samples), TBX11K (11200 samples), Montgomery County CXR (138 samples)]
+1. Use case 1: Federated polyp segmentation -polyp & background [Kvasir-SEG (1000 samples), CVC-ClinicDB (612 samples), CVC-ColonDB (380 samples), ETIS-Larib (196 samples)]
+2. Use case 2: Tuberculosis CXR classification- positive or normal [Shenzhen Hospital CXR set (662 samples), TBX11K (11200 samples), Montgomery County CXR (138 samples)]
 
 ## Citation
 If you find this project useful in your research, please cite our paper:
