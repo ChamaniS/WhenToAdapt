@@ -33,11 +33,10 @@ from dataset_utils import make_dataloaders, compute_class_weights_from_dataset, 
 # ----------------------------
 # IMPORTANT: DATA_ROOT must point to the folder that contains train/, val/, test/
 # Example Windows absolute path (raw string) OR use forward slashes:
-#   r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen_split"
-#   "C:/Users/csj5/Projects/Data/Tuberculosis_Data/Shenzhen_split"
+#   r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen_split"
 #
 # Replace the path below with your actual split root (not the inner archive images folder).
-DATA_ROOT = r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen"   # <- set to your split-root containing train/val/test
+DATA_ROOT = r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen"   # <- set to your split-root containing train/val/test
 OUTPUT_DIR = r"./outputs_tb"
 ARCH = "densenet121"                   # e.g. "densenet121", "densenet169", "swin_base_patch4_window7_224", ...
 IMG_SIZE = 224

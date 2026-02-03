@@ -53,10 +53,10 @@ import matplotlib.pyplot as plt
 # CONFIG - set these paths
 # ----------------------------
 CLIENT_ROOTS = [
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen",     # <-- update these 4 paths to your local paths
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Montgomery",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\TBX11K",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Pakistan"
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen",     # <-- update these 4 paths to your local paths
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Montgomery",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\TBX11K",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Pakistan"
 ]
 CLIENT_NAMES = ["Shenzhen", "Montgomery", "TBX11K", "Pakistan"]  # used only for display
 OUTPUT_DIR = r"./fl_outputs_comogan"

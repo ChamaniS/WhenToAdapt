@@ -215,12 +215,12 @@ def main():
 
     dataset_class = CVCDataset
 
-    TRAIN_IMG_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\train\images"
-    TRAIN_MASK_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\train\masks"
-    VAL_IMG_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\val\images"
-    VAL_MASK_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\val\masks"
-    TEST_IMG_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\test\images"
-    TEST_MASK_DIR = r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\ETIS\test\masks"
+    TRAIN_IMG_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\train\images"
+    TRAIN_MASK_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\train\masks"
+    VAL_IMG_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\val\images"
+    VAL_MASK_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\val\masks"
+    TEST_IMG_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\test\images"
+    TEST_MASK_DIR = r"xxxxx\Projects\Data\ETIS-Larib polyp\ETIS\test\masks"
 
     val_transform = A.Compose([
         A.Resize(256, 256),

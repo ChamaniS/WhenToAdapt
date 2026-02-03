@@ -46,10 +46,10 @@ UPLOADED_SAMPLE_PATH = "/mnt/data/bcea4669-5b03-46c7-9fe6-f80536ff4b98.png"
 # USER CONFIG (edit to your paths & preferences)
 # -----------------------
 CLIENT_ROOTS = [
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Montgomery",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\TBX11K",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Pakistan"
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Montgomery",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\TBX11K",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Pakistan"
 ]
 CLIENT_NAMES = ["Shenzhen", "Montgomery", "TBX11K", "Pakistan"]
 OUTPUT_DIR = "./fl_outputs_mixstyle_singlehist_perclass"

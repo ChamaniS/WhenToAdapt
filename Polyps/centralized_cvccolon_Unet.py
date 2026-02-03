@@ -217,12 +217,12 @@ def main():
 
     dataset_class = CVCDataset
 
-    TRAIN_IMG_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\train\images"
-    TRAIN_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\train\masks"
-    VAL_IMG_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\val\images"
-    VAL_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\val\masks"
-    TEST_IMG_DIR =r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\test\images"
-    TEST_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\test\masks"
+    TRAIN_IMG_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\train\images"
+    TRAIN_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\train\masks"
+    VAL_IMG_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\val\images"
+    VAL_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\val\masks"
+    TEST_IMG_DIR =r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\test\images"
+    TEST_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\test\masks"
 
     val_transform = A.Compose([
             A.Resize(height=IMAGE_HEIGHT, width=IMAGE_WIDTH),

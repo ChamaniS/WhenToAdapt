@@ -34,40 +34,40 @@ out_dir = "FL_Outputs_AdaIN_Polyps"
 os.makedirs(out_dir, exist_ok=True)
 
 train_img_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\train\images",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\train\images",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\images",
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_imgs",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\train\images",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\train\images",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\images",
 ]
 train_mask_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_masks",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\train\masks",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\train\masks",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\masks",
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\train_masks",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\train\masks",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\train\masks",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\masks",
 ]
 val_img_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\val_imgs",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\val\images",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\images",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\val\images"
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\val_imgs",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\val\images",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\images",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\val\images"
 ]
 val_mask_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\val_masks",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\val\masks",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\masks",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\val\masks"
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\val_masks",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\val\masks",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\masks",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\val\masks"
 ]
 test_img_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\test_imgs",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\test\images",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\images",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\test\images"
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\test_imgs",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\test\images",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\images",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\test\images"
 ]
 test_mask_dirs = [
-    r"C:\Users\csj5\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\test_masks",
-    r"C:\Users\csj5\Projects\Data\ETIS-Larib polyp\rearranged\test\masks",
-    r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\masks",
-    r"C:\Users\csj5\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\test\masks"
+    r"xxxxx\Projects\Data\kvasir-seg\Kvasir-SEG\centralized_Kvasir-SEG\test_masks",
+    r"xxxxx\Projects\Data\ETIS-Larib polyp\rearranged\test\masks",
+    r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\masks",
+    r"xxxxx\Projects\Data\CVC_ClinicDB\PNG\cvc-clinic\rearranged\test\masks"
 ]
 client_names = ["Kvasir", "ETIS", "CVC-Colon","CVC-Clinic"]
 

@@ -17,7 +17,7 @@ import shutil
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Where to store harmonized copies (cached between rounds/runs)
-DEFAULT_OUT_BASE = "/lustre09/project/6008975/csj5/flower-tutorial/my-awesome-app/my_awesome_app/Outputs"
+DEFAULT_OUT_BASE = "xxxxx/flower-tutorial/my-awesome-app/my_awesome_app/Outputs"
 os.makedirs(DEFAULT_OUT_BASE, exist_ok=True)
 
 
@@ -238,7 +238,7 @@ def load_data(
     If use_hist_match=True, creates/uses histogram-matched copies (cached under out_base).
     """
 
-    base_path = "/lustre09/project/6008975/csj5/flower-tutorial/my-awesome-app/my_awesome_app/Polyps/"
+    base_path = "xxxxx/flower-tutorial/my-awesome-app/my_awesome_app/Polyps/"
     dataset_map = {
         0: os.path.join(base_path, "Kvasir/Kvasir"),
         1: os.path.join(base_path, "ETIS/rearranged"),

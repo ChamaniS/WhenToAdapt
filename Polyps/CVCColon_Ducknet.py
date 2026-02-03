@@ -225,12 +225,12 @@ def main():
 
     dataset_class = CVCDataset
 
-    TRAIN_IMG_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\images"
-    TRAIN_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\masks"
-    VAL_IMG_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\images"
-    VAL_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\masks"
-    TEST_IMG_DIR =r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\images"
-    TEST_MASK_DIR = r"C:\Users\csj5\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\masks"
+    TRAIN_IMG_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\images"
+    TRAIN_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\train\masks"
+    VAL_IMG_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\images"
+    VAL_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\val\masks"
+    TEST_IMG_DIR =r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\images"
+    TEST_MASK_DIR = r"xxxxx\Projects\Data\CVC-ColonDB\CVC-colon\rearranged\test\masks"
 
     val_transform = A.Compose([
         A.Resize(256, 256),

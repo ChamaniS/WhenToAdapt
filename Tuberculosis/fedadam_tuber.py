@@ -41,10 +41,10 @@ from typing import List, Tuple
 # CONFIG - set these paths / hyperparams
 # ----------------------------
 CLIENT_ROOTS = [
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Montgomery",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\TBX11K",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Pakistan"
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Montgomery",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\TBX11K",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Pakistan"
 ]
 CLIENT_NAMES = ["Shenzhen", "Montgomery", "TBX11K", "Pakistan"]
 OUTPUT_DIR = r"./fedadam_outputs"

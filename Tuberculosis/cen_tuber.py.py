@@ -55,10 +55,10 @@ from typing import List, Tuple
 # ----------------------------
 # Put paths to the 4 client roots here:
 CLIENT_ROOTS = [
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen",     # <-- update these 4 paths
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Montgomery",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\TBX11K",
-    r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Pakistan"
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Shenzhen",     # <-- update these 4 paths
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Montgomery",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\TBX11K",
+    r"xxxxx\Projects\Data\Tuberculosis_Data\Pakistan"
 ]
 
 OUTPUT_DIR = r"./outputs_tb_multi_client"
