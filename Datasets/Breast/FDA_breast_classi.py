@@ -34,25 +34,25 @@ from PIL import Image
 # =========================================================
 SEED = 42
 
-DATA_ROOT = r"/lustre06/project/6008975/csj5/braintumor/"
-OUTPUT_DIR = "brain_tumor_federated_fda"
-MODEL_NAME = "efficientnet_b0_brain_tumor_fedavg_fda.pth"
+DATA_ROOT = r"/lustre06/project/6008975/csj5/Breasttumor_classi_renamed/"
+OUTPUT_DIR = "breast_class_federated_fda"
+MODEL_NAME = "efficientnet_b0_breast_tumor_fedavg_fda.pth"
 
 # This file will be loaded into EfficientNet-B0
 WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/FDA_brain.txt"
+output_file = r"/lustre06/project/6008975/csj5/narvalenv/FDA_breast.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 
 BATCH_SIZE = 4
 LOCAL_EPOCHS = 12
 COMM_ROUNDS = 10
-LR = 1e-4
+LR = 1e-3
 NUM_WORKERS = 0
 IMG_SIZE = 224
 
-CLIENT_NAMES = ["Sartajbhuvaji", "rm1000", "thomasdubail", "figshare"]
+CLIENT_NAMES = ["BUSBRA", "BUS", "BUSI", "UDIAT"]
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PIN_MEMORY = DEVICE.type == "cuda"
@@ -64,10 +64,10 @@ FDA_L = 0.05
 
 # One reference image per client, used to build the FDA harmonized version
 REFERENCE_IMAGES = {
-    "Sartajbhuvaji": "gg (1).jpg",
-    "rm1000": "Te-glTr_0000.jpg",
-    "thomasdubail": "G_1.jpg",
-    "figshare": "Te-gl_1.jpg",
+    "BUSBRA": "0001-r.png",
+    "BUS": "00104.png",
+    "BUSI": "101.png",
+    "UDIAT": "000007.png",
 }
 
 FDA_OUTPUT_SUBDIR = "FDA_Harmonized"
@@ -590,7 +590,7 @@ def create_fda_datasets(paths_dict, client_names, out_base, reference_images, L=
     print("[FDA] Harmonization finished.")
     return used_paths
 
-DIFF_AMPLIFICATION = 6.0
+DIFF_AMPLIFICATION = 6.0   
 DIFF_CLIP_MAX = 255
 
 def save_comparison_grid(original_img_path, harmonized_img_path, save_path, title=None):

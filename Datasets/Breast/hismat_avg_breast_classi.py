@@ -1,15 +1,14 @@
 import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-import copy
 import time
+import copy
+import random
 import json
 import csv
-import random
-from collections import defaultdict
-from pathlib import Path
-import sys
+import glob
 import numpy as np
+from collections import defaultdict
+import sys
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -24,58 +23,52 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     f1_score,
-    cohen_kappa_score,
+    cohen_kappa_score
 )
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
+from skimage import exposure
 
 # =========================================================
-# Config
+# Logging
 # =========================================================
-SEED = 42
-
-DATA_ROOT = r"/lustre06/project/6008975/csj5/braintumor/"
-OUTPUT_DIR = "brain_tumor_federated_fda"
-MODEL_NAME = "efficientnet_b0_brain_tumor_fedavg_fda.pth"
-
-# This file will be loaded into EfficientNet-B0
-WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
-
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/FDA_brain.txt"
+output_file = r"/lustre06/project/6008975/csj5/narvalenv/hismat_avg_brain.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
+
+# =========================
+# Config
+# =========================
+SEED = 42
+DATA_ROOT = r"/lustre06/project/6008975/csj5/Breasttumor_classi_renamed/"
+OUTPUT_DIR = r"/lustre06/project/6008975/csj5/narvalenv/breast_tumor_avg_histmatch/"
+MODEL_NAME = "efficientnet_b0_breast_tumor_fedavg_histmatch.pth"
+
+# Put the downloaded EfficientNet-B0 weights file here
+WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
 BATCH_SIZE = 4
 LOCAL_EPOCHS = 12
 COMM_ROUNDS = 10
-LR = 1e-4
+LR = 1e-3
 NUM_WORKERS = 0
 IMG_SIZE = 224
 
-CLIENT_NAMES = ["Sartajbhuvaji", "rm1000", "thomasdubail", "figshare"]
+CLIENT_NAMES = ["BUSBRA", "BUS", "BUSI", "UDIAT"]
+
+# Use None to average ALL training samples from the largest client.
+# Or set an integer to average only that many randomly chosen training images.
+N_REF_SAMPLES = None
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PIN_MEMORY = DEVICE.type == "cuda"
 scaler = torch.cuda.amp.GradScaler(enabled=(DEVICE.type == "cuda"))
 
-# FDA settings
-USE_FDA = True
-FDA_L = 0.05
-
-# One reference image per client, used to build the FDA harmonized version
-REFERENCE_IMAGES = {
-    "Sartajbhuvaji": "gg (1).jpg",
-    "rm1000": "Te-glTr_0000.jpg",
-    "thomasdubail": "G_1.jpg",
-    "figshare": "Te-gl_1.jpg",
-}
-
-FDA_OUTPUT_SUBDIR = "FDA_Harmonized"
-GRID_OUTPUT_SUBDIR = "ComparisonGrids"
-
-# =========================================================
+# =========================
 # Reproducibility
-# =========================================================
+# =========================
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -86,15 +79,20 @@ def set_seed(seed=42):
 
 set_seed(SEED)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(os.path.join(OUTPUT_DIR, "comparison_grids"), exist_ok=True)
 
-# =========================================================
+# =========================
 # Transforms
-# =========================================================
+# =========================
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
 
 train_tfms = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(10),
+    transforms.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.95, 1.05)),
+    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
     transforms.ToTensor(),
     transforms.Normalize(mean=mean, std=std),
 ])
@@ -105,50 +103,10 @@ eval_tfms = transforms.Compose([
     transforms.Normalize(mean=mean, std=std),
 ])
 
-# =========================================================
+# =========================
 # Helpers
-# =========================================================
-def ensure_dir(path):
-    os.makedirs(path, exist_ok=True)
-
-def normalize_name(name):
-    stem = os.path.splitext(os.path.basename(name))[0]
-    return "".join(ch.lower() for ch in stem if ch.isalnum())
-
-def is_image_file(path):
-    return path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
-
-def list_images_recursive(root_dir):
-    files = []
-    for dirpath, _, filenames in os.walk(root_dir):
-        for fn in filenames:
-            full = os.path.join(dirpath, fn)
-            if is_image_file(full):
-                files.append(full)
-    return sorted(files)
-
-def find_image_by_basename(root_dirs, target_filename):
-    """
-    Search recursively across a list of directories for a file whose basename
-    matches the target filename after normalization.
-    """
-    target_key = normalize_name(target_filename)
-    for root in root_dirs:
-        if not os.path.isdir(root):
-            continue
-        for path in list_images_recursive(root):
-            if normalize_name(os.path.basename(path)) == target_key:
-                return path
-    return None
-
-def get_split_paths(root, client_names):
-    """
-    Expected structure:
-      DATA_ROOT/
-        clientA/train/<class folders>
-        clientA/val/<class folders>
-        clientA/test/<class folders>
-    """
+# =========================
+def set_dataset_paths(root, client_names):
     paths = {}
     for client in client_names:
         paths[client] = {
@@ -157,6 +115,22 @@ def get_split_paths(root, client_names):
             "test": os.path.join(root, client, "test"),
         }
     return paths
+
+def image_list_in_dir(root_dir):
+    exts = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
+    files = []
+    if not os.path.isdir(root_dir):
+        return files
+    for ext in exts:
+        files.extend(glob.glob(os.path.join(root_dir, "**", f"*{ext}"), recursive=True))
+    return sorted(files)
+
+def match_histogram_rgb(src_rgb, ref_rgb):
+    try:
+        matched = exposure.match_histograms(src_rgb, ref_rgb, channel_axis=-1)
+    except TypeError:
+        matched = exposure.match_histograms(src_rgb, ref_rgb, multichannel=True)
+    return np.clip(matched, 0, 255).astype(np.uint8)
 
 def check_class_alignment(datasets_list):
     base_classes = datasets_list[0].classes
@@ -178,84 +152,37 @@ def check_class_alignment(datasets_list):
 
     return base_classes, base_class_to_idx
 
-def build_combined_dataset(ds_list):
-    if len(ds_list) == 1:
-        return ds_list[0]
-    return ConcatDataset(ds_list)
-
-def count_samples(ds):
-    if isinstance(ds, ConcatDataset):
-        return sum(len(d) for d in ds.datasets)
-    return len(ds)
-
-def load_state_dict_flexibly(weights_path):
-    """
-    Loads a checkpoint from several common formats:
-    - raw state_dict
-    - {'state_dict': ...}
-    - {'model_state_dict': ...}
-    Also strips 'module.' prefixes if present.
-    """
-    if not os.path.isfile(weights_path):
-        raise FileNotFoundError(f"WEIGHTS_PATH not found: {weights_path}")
-
-    checkpoint = torch.load(weights_path, map_location="cpu")
-
-    if isinstance(checkpoint, dict):
-        if "state_dict" in checkpoint:
-            state_dict = checkpoint["state_dict"]
-        elif "model_state_dict" in checkpoint:
-            state_dict = checkpoint["model_state_dict"]
-        else:
-            state_dict = checkpoint
-    else:
-        state_dict = checkpoint
-
-    clean_state_dict = {}
-    for k, v in state_dict.items():
-        key = k[7:] if k.startswith("module.") else k
-        clean_state_dict[key] = v
-
-    return clean_state_dict
-
-def build_model(num_classes, weights_path=None):
-    """
-    EfficientNet-B0 with optional local pretrained weights.
-    The classifier head is replaced for num_classes, and the loaded checkpoint
-    skips mismatched classifier weights.
-    """
+def build_model(num_classes, weights_path=WEIGHTS_PATH):
     model = efficientnet_b0(weights=None)
+
     in_features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(in_features, num_classes)
 
-    if weights_path is not None and os.path.isfile(weights_path):
-        state_dict = load_state_dict_flexibly(weights_path)
+    if not os.path.isfile(weights_path):
+        raise FileNotFoundError(
+            f"Pretrained weights not found: {weights_path}\n"
+            f"Download the official EfficientNet-B0 checkpoint and place it there."
+        )
 
-        model_state = model.state_dict()
-        filtered_state = {}
+    checkpoint = torch.load(weights_path, map_location="cpu")
 
-        skipped = []
-        loaded = 0
-
-        for k, v in state_dict.items():
-            # Skip classifier head because num_classes differs
-            if k.startswith("classifier.1."):
-                skipped.append(k)
-                continue
-
-            if k in model_state and model_state[k].shape == v.shape:
-                filtered_state[k] = v
-                loaded += 1
-            else:
-                skipped.append(k)
-
-        missing, unexpected = model.load_state_dict(filtered_state, strict=False)
-        print(f"[Weights] Loaded checkpoint: {weights_path}")
-        print(f"[Weights] Loaded tensors: {loaded}")
-        print(f"[Weights] Missing keys after load: {len(missing)}")
-        print(f"[Weights] Unexpected keys after load: {len(unexpected)}")
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
     else:
-        print("[Weights] No valid WEIGHTS_PATH provided. Training from scratch.")
+        state_dict = checkpoint
+
+    filtered_state_dict = {}
+    for k, v in state_dict.items():
+        key = k.replace("module.", "")
+        if key.startswith("classifier.1."):
+            continue
+        filtered_state_dict[key] = v
+
+    missing_keys, unexpected_keys = model.load_state_dict(filtered_state_dict, strict=False)
+
+    print(f"Loaded EfficientNet-B0 weights from: {weights_path}")
+    print("Missing keys:", missing_keys)
+    print("Unexpected keys:", unexpected_keys)
 
     return model
 
@@ -279,12 +206,185 @@ def compute_specificity_from_cm(cm):
 
 def average_state_dicts_weighted(models, weights):
     avg_sd = copy.deepcopy(models[0].state_dict())
+    model_sds = [m.state_dict() for m in models]
+
     for k in avg_sd.keys():
-        avg_sd[k] = sum(weights[i] * models[i].state_dict()[k] for i in range(len(models)))
+        if torch.is_floating_point(avg_sd[k]):
+            avg_tensor = torch.zeros_like(avg_sd[k])
+            for i in range(len(models)):
+                avg_tensor += weights[i] * model_sds[i][k].to(avg_tensor.device, dtype=avg_tensor.dtype)
+            avg_sd[k] = avg_tensor
+        else:
+            avg_sd[k] = model_sds[0][k]
+
     return avg_sd
 
+# =========================
+# Reference image: average image from largest client
+# =========================
+def _list_images_recursively(root_dir):
+    exts = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
+    if not os.path.isdir(root_dir):
+        return []
+    files = []
+    for ext in exts:
+        files.extend(glob.glob(os.path.join(root_dir, "**", f"*{ext}"), recursive=True))
+    return sorted(files)
+
+def select_reference_client_by_training_size(paths):
+    train_counts = {}
+    for client in CLIENT_NAMES:
+        train_dir = paths[client]["train"]
+        ds = datasets.ImageFolder(train_dir)
+        train_counts[client] = len(ds)
+
+    reference_client = max(train_counts, key=train_counts.get)
+    reference_idx = CLIENT_NAMES.index(reference_client)
+
+    print("\nTraining sample counts per client:")
+    for c in CLIENT_NAMES:
+        print(f"  {c:15s}: {train_counts[c]}")
+
+    print(f"\nSelected reference client: {reference_client} "
+          f"(highest training sample count: {train_counts[reference_client]})")
+
+    return reference_idx, train_counts
+
+def compute_average_reference_image(reference_train_dir, n_samples=None, resize_to=(224, 224)):
+    """
+    reference_train_dir should be the train folder itself, e.g.
+    /.../figshare/train
+    containing class subfolders like glioma, pituitary, meningioma, no_tumor.
+    """
+    img_paths = _list_images_recursively(reference_train_dir)
+    if len(img_paths) == 0:
+        raise ValueError(f"No training images found in reference train directory: {reference_train_dir}")
+
+    if n_samples is not None and len(img_paths) > n_samples:
+        rng = np.random.default_rng(SEED)
+        img_paths = list(rng.choice(img_paths, size=n_samples, replace=False))
+
+    acc = None
+    count = 0
+
+    for p in img_paths:
+        img = Image.open(p).convert("RGB")
+        if resize_to is not None:
+            img = img.resize(resize_to, resample=Image.BILINEAR)
+        arr = np.array(img).astype(np.float32)
+
+        if acc is None:
+            acc = arr
+        else:
+            acc += arr
+        count += 1
+
+    avg = (acc / max(count, 1)).astype(np.uint8)
+    return avg, len(img_paths)
+
+# =========================
+# Comparison grid
+# =========================
+def save_comparison_grid_for_client(original_split_dir, reference_rgb, client_name, out_dir, split_name="train", sample_index=0):
+    files = image_list_in_dir(original_split_dir)
+    if len(files) == 0:
+        print(f"[VIS] No images found for {client_name} ({split_name})")
+        return
+
+    sample_index = max(0, min(sample_index, len(files) - 1))
+    sample_path = files[sample_index]
+    sample_name = os.path.basename(sample_path)
+
+    orig_img = Image.open(sample_path).convert("RGB").resize((IMG_SIZE, IMG_SIZE))
+    orig_np = np.array(orig_img).astype(np.uint8)
+
+    matched_np = match_histogram_rgb(orig_np, reference_rgb)
+    diff_np = np.abs(matched_np.astype(np.int16) - orig_np.astype(np.int16)).astype(np.uint8)
+    amplified_diff = np.clip(diff_np * 3, 0, 255).astype(np.uint8)
+
+    fig, axs = plt.subplots(3, 1, figsize=(7, 10))
+
+    axs[0].imshow(orig_np)
+    axs[0].axis("off")
+    axs[0].set_title(f"Original\nIndex: {sample_index} | File: {sample_name}", fontsize=10)
+
+    axs[1].imshow(matched_np)
+    axs[1].axis("off")
+    axs[1].set_title(f"Histogram Matched\nIndex: {sample_index} | File: {sample_name}", fontsize=10)
+
+    axs[2].imshow(amplified_diff)
+    axs[2].axis("off")
+    axs[2].set_title(f"Amplified Difference\nIndex: {sample_index} | File: {sample_name}", fontsize=10)
+
+    fig.suptitle(
+        f"Histogram Matching Comparison - {client_name} ({split_name})\n"
+        f"Image index: {sample_index} | Image name: {sample_name}",
+        fontsize=13
+    )
+    fig.tight_layout(rect=[0, 0.03, 1, 0.92])
+
+    out_path = os.path.join(out_dir, "comparison_grids", f"comparison_{client_name}_{split_name}.png")
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"[VIS] Saved comparison grid: {out_path}")
+    print(f"[VIS] {client_name} {split_name} sample -> index={sample_index}, file={sample_name}")
+
+# =========================
+# Histogram-matched dataset
+# =========================
+class HistogramMatchedImageFolder(datasets.ImageFolder):
+    def __init__(self, root, transform=None, reference_rgb=None):
+        super().__init__(root=root, transform=None, target_transform=None, loader=datasets.folder.default_loader)
+        self.user_transform = transform
+        self.reference_rgb = reference_rgb
+
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        img = self.loader(path).convert("RGB")
+        img_np = np.array(img).astype(np.uint8)
+
+        if self.reference_rgb is not None:
+            matched_np = match_histogram_rgb(img_np, self.reference_rgb)
+        else:
+            matched_np = img_np
+
+        matched_img = Image.fromarray(matched_np)
+
+        if self.user_transform is not None:
+            matched_img = self.user_transform(matched_img)
+
+        return matched_img, target
+
+def build_client_datasets(paths_dict, split, transform, reference_rgb):
+    ds_list = []
+    for client in CLIENT_NAMES:
+        split_dir = paths_dict[client][split]
+        if not os.path.isdir(split_dir):
+            raise FileNotFoundError(f"Missing directory: {split_dir}")
+        ds = HistogramMatchedImageFolder(split_dir, transform=transform, reference_rgb=reference_rgb)
+        ds_list.append(ds)
+
+    classes, class_to_idx = check_class_alignment(ds_list)
+    return ds_list, classes, class_to_idx
+
+def build_combined_dataset(ds_list):
+    if len(ds_list) == 1:
+        return ds_list[0]
+    return ConcatDataset(ds_list)
+
+def count_samples(ds):
+    if isinstance(ds, ConcatDataset):
+        return sum(len(d) for d in ds.datasets)
+    return len(ds)
+
+# =========================
+# Training / evaluation
+# =========================
 def run_epoch(model, loader, criterion, optimizer=None, train=True):
-    model.train() if train else model.eval()
+    if train:
+        model.train()
+    else:
+        model.eval()
 
     running_loss = 0.0
     all_preds = []
@@ -394,7 +494,7 @@ def save_metrics_csv(results, path):
             "recall_macro",
             "f1_macro",
             "kappa",
-            "specificity_macro",
+            "specificity_macro"
         ])
         for r in results:
             writer.writerow([
@@ -405,7 +505,7 @@ def save_metrics_csv(results, path):
                 f'{r["recall_macro"]:.6f}',
                 f'{r["f1_macro"]:.6f}',
                 f'{r["kappa"]:.6f}',
-                f'{r["specificity_macro"]:.6f}',
+                f'{r["specificity_macro"]:.6f}'
             ])
 
 def plot_round_curves(history, out_dir):
@@ -443,307 +543,58 @@ def plot_round_curves(history, out_dir):
     plt.savefig(os.path.join(out_dir, "fed_global_test_acc.png"), dpi=300)
     plt.close()
 
-# =========================================================
-# FDA: Fourier Domain Adaptation
-# =========================================================
-try:
-    RESAMPLE_BILINEAR = Image.Resampling.BILINEAR
-except AttributeError:
-    RESAMPLE_BILINEAR = Image.BILINEAR
-
-def load_rgb_uint8(path):
-    return np.array(Image.open(path).convert("RGB"), dtype=np.uint8)
-
-def save_rgb_uint8(arr, path):
-    Image.fromarray(arr.astype(np.uint8)).save(path)
-
-def fda_swap_amplitude(src_img, ref_img, L=0.05):
-    """
-    FDA amplitude swapping for RGB uint8 images.
-    src_img, ref_img: HxWx3 uint8 arrays
-    """
-    src = src_img.astype(np.float32)
-    ref = ref_img.astype(np.float32)
-
-    h, w, _ = src.shape
-
-    if ref.shape[0] != h or ref.shape[1] != w:
-        ref = np.array(
-            Image.fromarray(ref.astype(np.uint8)).resize((w, h), resample=RESAMPLE_BILINEAR)
-        ).astype(np.float32)
-
-    b_h = max(1, int(np.floor(h * L)))
-    b_w = max(1, int(np.floor(w * L)))
-
-    c_h = h // 2
-    c_w = w // 2
-
-    out = np.zeros_like(src, dtype=np.uint8)
-
-    for ch in range(3):
-        src_f = np.fft.fft2(src[:, :, ch])
-        src_fshift = np.fft.fftshift(src_f)
-        src_amp = np.abs(src_fshift)
-        src_pha = np.angle(src_fshift)
-
-        ref_f = np.fft.fft2(ref[:, :, ch])
-        ref_fshift = np.fft.fftshift(ref_f)
-        ref_amp = np.abs(ref_fshift)
-
-        h1 = max(0, c_h - b_h)
-        h2 = min(h, c_h + b_h)
-        w1 = max(0, c_w - b_w)
-        w2 = min(w, c_w + b_w)
-
-        src_amp[h1:h2, w1:w2] = ref_amp[h1:h2, w1:w2]
-
-        combined = src_amp * np.exp(1j * src_pha)
-        combined_ishift = np.fft.ifftshift(combined)
-        rec = np.fft.ifft2(combined_ishift)
-        rec = np.real(rec)
-        rec = np.clip(rec, 0, 255).astype(np.uint8)
-        out[:, :, ch] = rec
-
-    return out
-
-def build_reference_image_for_client(original_client_root, ref_filename):
-    """
-    Search the original client's train/val/test folders for the requested filename.
-    """
-    search_dirs = [
-        os.path.join(original_client_root, "train"),
-        os.path.join(original_client_root, "val"),
-        os.path.join(original_client_root, "test"),
-    ]
-    ref_path = find_image_by_basename(search_dirs, ref_filename)
-    if ref_path is None:
-        # Fallback: first image from train/val/test
-        for d in search_dirs:
-            imgs = list_images_recursive(d)
-            if imgs:
-                ref_path = imgs[0]
-                print(f"[FDA] Warning: reference '{ref_filename}' not found for {original_client_root}.")
-                print(f"[FDA] Falling back to first available image: {ref_path}")
-                break
-
-    if ref_path is None:
-        raise ValueError(f"No images found for client root: {original_client_root}")
-
-    ref_img = load_rgb_uint8(ref_path)
-    return ref_path, ref_img
-
-def create_fda_split(src_split_dir, dst_split_dir, ref_img, L=0.05):
-    """
-    Copy the ImageFolder structure from src_split_dir to dst_split_dir,
-    but replace each source image with its FDA-harmonized version.
-    """
-    ensure_dir(dst_split_dir)
-
-    ds = datasets.ImageFolder(src_split_dir, transform=None)
-    if len(ds) == 0:
-        raise ValueError(f"No images found in {src_split_dir}")
-
-    for img_path, class_idx in ds.samples:
-        rel_path = os.path.relpath(img_path, src_split_dir)
-        dst_path = os.path.join(dst_split_dir, rel_path)
-        ensure_dir(os.path.dirname(dst_path))
-
-        src_img = load_rgb_uint8(img_path)
-        harmonized = fda_swap_amplitude(src_img, ref_img, L=L)
-        save_rgb_uint8(harmonized, dst_path)
-
-def create_fda_datasets(paths_dict, client_names, out_base, reference_images, L=0.05):
-    """
-    Create harmonized train/val/test copies for every client.
-    """
-    base = os.path.join(out_base, FDA_OUTPUT_SUBDIR)
-    ensure_dir(base)
-
-    used_paths = {}
-
-    for client in client_names:
-        client_root = os.path.join(DATA_ROOT, client)
-        ref_filename = reference_images.get(client, None)
-        if ref_filename is None:
-            raise ValueError(f"Missing reference image filename for client: {client}")
-
-        ref_path, ref_img = build_reference_image_for_client(client_root, ref_filename)
-        print(f"[FDA] Client: {client}")
-        print(f"[FDA] Reference image: {ref_path}")
-
-        client_base = os.path.join(base, client)
-        train_dst = os.path.join(client_base, "train")
-        val_dst = os.path.join(client_base, "val")
-        test_dst = os.path.join(client_base, "test")
-
-        print(f"[FDA] Harmonizing train/val/test for {client} ...")
-        create_fda_split(paths_dict[client]["train"], train_dst, ref_img, L=L)
-        create_fda_split(paths_dict[client]["val"], val_dst, ref_img, L=L)
-        create_fda_split(paths_dict[client]["test"], test_dst, ref_img, L=L)
-
-        used_paths[client] = {
-            "train": train_dst,
-            "val": val_dst,
-            "test": test_dst,
-        }
-
-    print("[FDA] Harmonization finished.")
-    return used_paths
-
-DIFF_AMPLIFICATION = 6.0
-DIFF_CLIP_MAX = 255
-
-def save_comparison_grid(original_img_path, harmonized_img_path, save_path, title=None):
-    orig = load_rgb_uint8(original_img_path)
-    harm = load_rgb_uint8(harmonized_img_path)
-
-    if orig.shape != harm.shape:
-        harm = np.array(
-            Image.fromarray(harm).resize((orig.shape[1], orig.shape[0]), resample=RESAMPLE_BILINEAR),
-            dtype=np.uint8
-        )
-
-    diff = np.abs(orig.astype(np.int16) - harm.astype(np.int16)).astype(np.float32)
-    diff_vis = np.clip(diff * DIFF_AMPLIFICATION, 0, DIFF_CLIP_MAX).astype(np.uint8)
-    fig, axs = plt.subplots(3, 1, figsize=(8, 10))
-
-    if title is None:
-        title = os.path.basename(original_img_path)
-
-    axs[0].imshow(orig)
-    axs[0].axis("off")
-    axs[0].set_title("Original", fontsize=12)
-
-    axs[1].imshow(harm)
-    axs[1].axis("off")
-    axs[1].set_title("FDA Harmonized", fontsize=12)
-
-    axs[2].imshow(diff_vis)
-    axs[2].axis("off")
-    axs[2].set_title(f"Amplified Absolute Difference (x{DIFF_AMPLIFICATION})", fontsize=12)
-
-    fig.suptitle(title, fontsize=14)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    ensure_dir(os.path.dirname(save_path))
-    plt.savefig(save_path, dpi=180)
-    plt.close(fig)
-
-def save_selected_comparison_grids(original_paths_dict, harmonized_paths_dict, client_names, out_base, reference_images):
-    grids_base = os.path.join(out_base, GRID_OUTPUT_SUBDIR)
-    ensure_dir(grids_base)
-
-    for client in client_names:
-        ref_filename = reference_images.get(client)
-        if ref_filename is None:
-            print(f"[Grid] No reference image specified for {client}. Skipping.")
-            continue
-
-        original_dirs = [
-            original_paths_dict[client]["train"],
-            original_paths_dict[client]["val"],
-            original_paths_dict[client]["test"],
-        ]
-        harmonized_dirs = [
-            harmonized_paths_dict[client]["train"],
-            harmonized_paths_dict[client]["val"],
-            harmonized_paths_dict[client]["test"],
-        ]
-
-        orig_path = find_image_by_basename(original_dirs, ref_filename)
-        harm_path = find_image_by_basename(harmonized_dirs, ref_filename)
-
-        if orig_path is None:
-            print(f"[Grid] Could not find original image '{ref_filename}' for client '{client}'")
-            continue
-        if harm_path is None:
-            print(f"[Grid] Could not find harmonized image '{ref_filename}' for client '{client}'")
-            continue
-
-        client_out = os.path.join(grids_base, client)
-        ensure_dir(client_out)
-
-        safe_name = "".join(ch if ch.isalnum() else "_" for ch in os.path.splitext(ref_filename)[0]).strip("_")
-        save_path = os.path.join(client_out, f"comparison_grid_{safe_name}.png")
-
-        save_comparison_grid(
-            orig_path,
-            harm_path,
-            save_path,
-            title=f"{client} - {ref_filename}",
-        )
-        print(f"[Grid] Saved: {save_path}")
-
-# =========================================================
+# =========================
 # Main
-# =========================================================
+# =========================
 def main():
-    paths = get_split_paths(DATA_ROOT, CLIENT_NAMES)
+    paths = set_dataset_paths(DATA_ROOT, CLIENT_NAMES)
 
-    # Check original dataset structure
     for client in CLIENT_NAMES:
         for split in ["train", "val", "test"]:
             if not os.path.isdir(paths[client][split]):
                 raise FileNotFoundError(f"Missing directory: {paths[client][split]}")
 
-    print("Original dataset paths:")
+    # Pick the client with the highest number of training samples
+    reference_client_idx, train_counts = select_reference_client_by_training_size(paths)
+    reference_client_name = CLIENT_NAMES[reference_client_idx]
+    reference_train_dir = paths[reference_client_name]["train"]
+
+    # Build the average reference image from some or all training samples
+    reference_rgb, used_count = compute_average_reference_image(
+        reference_train_dir,
+        n_samples=N_REF_SAMPLES,          # None = all samples
+        resize_to=(IMG_SIZE, IMG_SIZE)
+    )
+
+    ref_save_path = os.path.join(OUTPUT_DIR, "reference_average_image.png")
+    Image.fromarray(reference_rgb).save(ref_save_path)
+    print(f"\nReference average image saved to: {ref_save_path}")
+    print(f"Reference dataset: {reference_client_name}")
+    print(f"Number of images used for average: {used_count}")
+
+    print("\nSaving one comparison grid per client...")
     for client in CLIENT_NAMES:
-        print(f"\nClient: {client}")
-        print(f"  train: {paths[client]['train']}")
-        print(f"  val  : {paths[client]['val']}")
-        print(f"  test : {paths[client]['test']}")
-
-    # FDA harmonization
-    if USE_FDA:
-        used_paths = create_fda_datasets(
-            paths_dict=paths,
-            client_names=CLIENT_NAMES,
-            out_base=OUTPUT_DIR,
-            reference_images=REFERENCE_IMAGES,
-            L=FDA_L,
+        save_comparison_grid_for_client(
+            original_split_dir=paths[client]["train"],
+            reference_rgb=reference_rgb,
+            client_name=client,
+            out_dir=OUTPUT_DIR,
+            split_name="train",
+            sample_index=0
         )
-        save_selected_comparison_grids(
-            original_paths_dict=paths,
-            harmonized_paths_dict=used_paths,
-            client_names=CLIENT_NAMES,
-            out_base=OUTPUT_DIR,
-            reference_images=REFERENCE_IMAGES,
-        )
-    else:
-        used_paths = paths
 
-    # Build per-client datasets from either original or FDA-harmonized data
-    train_datasets = []
-    val_datasets = []
-    test_datasets = []
-
-    for client in CLIENT_NAMES:
-        train_ds = datasets.ImageFolder(used_paths[client]["train"], transform=train_tfms)
-        val_ds = datasets.ImageFolder(used_paths[client]["val"], transform=eval_tfms)
-        test_ds = datasets.ImageFolder(used_paths[client]["test"], transform=eval_tfms)
-
-        if len(train_ds) == 0:
-            raise ValueError(f"No training images found for {client}: {used_paths[client]['train']}")
-        if len(val_ds) == 0:
-            raise ValueError(f"No validation images found for {client}: {used_paths[client]['val']}")
-        if len(test_ds) == 0:
-            raise ValueError(f"No test images found for {client}: {used_paths[client]['test']}")
-
-        train_datasets.append(train_ds)
-        val_datasets.append(val_ds)
-        test_datasets.append(test_ds)
-
-    # Validate class alignment
-    class_names, class_to_idx = check_class_alignment(train_datasets)
-    num_classes = len(class_names)
-
-    print("\nClasses:", class_names)
-    print("Class to idx:", class_to_idx)
+    # Build per-client datasets with histogram matching applied on the fly
+    train_datasets, class_names, class_to_idx = build_client_datasets(paths, "train", train_tfms, reference_rgb)
+    val_datasets, _, _ = build_client_datasets(paths, "val", eval_tfms, reference_rgb)
+    test_datasets, _, _ = build_client_datasets(paths, "test", eval_tfms, reference_rgb)
 
     train_ds_all = build_combined_dataset(train_datasets)
     val_ds_all = build_combined_dataset(val_datasets)
     test_ds_all = build_combined_dataset(test_datasets)
 
-    print("\nDataset sizes:")
+    num_classes = len(class_names)
+
+    print("\nClasses:", class_names)
     print("Train samples (all clients):", count_samples(train_ds_all))
     print("Val samples   (all clients):", count_samples(val_ds_all))
     print("Test samples  (all clients):", count_samples(test_ds_all))
@@ -751,7 +602,6 @@ def main():
     for client, ds_tr, ds_va, ds_te in zip(CLIENT_NAMES, train_datasets, val_datasets, test_datasets):
         print(f"{client:15s} | train={len(ds_tr):5d}  val={len(ds_va):5d}  test={len(ds_te):5d}")
 
-    # DataLoaders
     train_loaders = {}
     val_loaders = {}
     test_loaders = {}
@@ -762,21 +612,21 @@ def main():
             batch_size=BATCH_SIZE,
             shuffle=True,
             num_workers=NUM_WORKERS,
-            pin_memory=PIN_MEMORY,
+            pin_memory=PIN_MEMORY
         )
         val_loaders[client] = DataLoader(
             ds_va,
             batch_size=BATCH_SIZE,
             shuffle=False,
             num_workers=NUM_WORKERS,
-            pin_memory=PIN_MEMORY,
+            pin_memory=PIN_MEMORY
         )
         test_loaders[client] = DataLoader(
             ds_te,
             batch_size=BATCH_SIZE,
             shuffle=False,
             num_workers=NUM_WORKERS,
-            pin_memory=PIN_MEMORY,
+            pin_memory=PIN_MEMORY
         )
 
     global_val_loader = DataLoader(
@@ -784,7 +634,7 @@ def main():
         batch_size=BATCH_SIZE,
         shuffle=False,
         num_workers=NUM_WORKERS,
-        pin_memory=PIN_MEMORY,
+        pin_memory=PIN_MEMORY
     )
 
     global_test_loader = DataLoader(
@@ -792,11 +642,10 @@ def main():
         batch_size=BATCH_SIZE,
         shuffle=False,
         num_workers=NUM_WORKERS,
-        pin_memory=PIN_MEMORY,
+        pin_memory=PIN_MEMORY
     )
 
-    # Model / loss
-    global_model = build_model(num_classes, weights_path=WEIGHTS_PATH).to(DEVICE)
+    global_model = build_model(num_classes).to(DEVICE)
     criterion = nn.CrossEntropyLoss()
 
     best_val_loss = float("inf")
@@ -815,6 +664,7 @@ def main():
         round_train_losses = []
         round_train_accs = []
 
+        # -------- Local training on each client --------
         for client_name in CLIENT_NAMES:
             print(f"\n[Client {client_name}]")
 
@@ -833,7 +683,7 @@ def main():
                     train_loader,
                     criterion,
                     optimizer=optimizer,
-                    train=True,
+                    train=True
                 )
                 client_epoch_losses.append(tr_loss)
                 client_epoch_accs.append(tr_acc)
@@ -844,7 +694,7 @@ def main():
                 val_loader,
                 criterion,
                 optimizer=None,
-                train=False,
+                train=False
             )
             print(f"  Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
 
@@ -858,20 +708,20 @@ def main():
         if total_train_size == 0:
             raise RuntimeError("Total training size across clients is 0. Check your dataset splits.")
 
-        # FedAvg
+        # -------- FedAvg aggregation --------
         norm_weights = [w / total_train_size for w in local_weights]
         global_model.load_state_dict(average_state_dicts_weighted(local_models, norm_weights))
 
-        # Global validation
+        # -------- Global validation --------
         global_val_loss, global_val_acc, _, _ = run_epoch(
             global_model,
             global_val_loader,
             criterion,
             optimizer=None,
-            train=False,
+            train=False
         )
 
-        # Save best model
+        # -------- Save best model by global validation loss --------
         if global_val_loss < best_val_loss:
             best_val_loss = global_val_loss
             best_model_wts = copy.deepcopy(global_model.state_dict())
@@ -886,7 +736,9 @@ def main():
             "val_acc": global_val_acc,
         }
 
-        # Global test after this round
+        # =========================
+        # TEST AFTER THIS COMM ROUND
+        # =========================
         print("\n" + "=" * 30)
         print(f"GLOBAL TEST AFTER ROUND {r + 1} (ALL CLIENTS TOGETHER)")
         print("=" * 30)
@@ -898,7 +750,7 @@ def main():
             class_names,
             title_prefix=f"global_round_{r + 1}",
             save_dir=OUTPUT_DIR,
-            save_cm=True,
+            save_cm=True
         )
 
         rm["global_test_loss"] = global_test_result["loss"]
@@ -921,7 +773,7 @@ def main():
                 class_names,
                 title_prefix=f"{client_name}_round_{r + 1}",
                 save_dir=OUTPUT_DIR,
-                save_cm=True,
+                save_cm=True
             )
 
             rm[f"{client_name}_test_loss"] = client_result["loss"]
@@ -956,7 +808,9 @@ def main():
     # Load best weights
     global_model.load_state_dict(best_model_wts)
 
-    # Final evaluation
+    # =========================
+    # Final Test evaluation
+    # =========================
     final_results = []
 
     print("\n==============================")
@@ -969,7 +823,7 @@ def main():
         class_names,
         title_prefix="all_clients_final",
         save_dir=OUTPUT_DIR,
-        save_cm=True,
+        save_cm=True
     )
     final_results.append(result_all)
 
@@ -984,11 +838,11 @@ def main():
             class_names,
             title_prefix=f"{client_name}_final",
             save_dir=OUTPUT_DIR,
-            save_cm=True,
+            save_cm=True
         )
         final_results.append(result_client)
 
-    # Save metrics
+    # Save round metrics
     with open(os.path.join(OUTPUT_DIR, "federated_round_metrics.json"), "w") as f:
         json.dump(round_metrics, f, indent=2)
 
@@ -997,6 +851,7 @@ def main():
         writer.writeheader()
         writer.writerows(round_metrics)
 
+    # Save final metrics
     save_metrics_csv(final_results, os.path.join(OUTPUT_DIR, "final_test_metrics.csv"))
     with open(os.path.join(OUTPUT_DIR, "final_test_metrics.json"), "w") as f:
         json.dump(final_results, f, indent=2)
@@ -1007,8 +862,8 @@ def main():
     print(os.path.join(OUTPUT_DIR, "federated_round_metrics.json"))
     print(os.path.join(OUTPUT_DIR, "final_test_metrics.csv"))
     print(os.path.join(OUTPUT_DIR, "final_test_metrics.json"))
-    print(os.path.join(OUTPUT_DIR, FDA_OUTPUT_SUBDIR))
-    print(os.path.join(OUTPUT_DIR, GRID_OUTPUT_SUBDIR))
+    print(os.path.join(OUTPUT_DIR, "comparison_grids"))
+    print(os.path.join(OUTPUT_DIR, "reference_average_image.png"))
 
 if __name__ == "__main__":
-    main()
+    main()s
