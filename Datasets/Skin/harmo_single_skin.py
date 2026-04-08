@@ -20,7 +20,7 @@ from PIL import Image
 from skimage import exposure 
 from unet import UNET 
 
-output_file ="/lustre06/project/6008975/csj5/narvalenv/skin_harm_hismat_single.txt"
+output_file ="/xxxxxxxx/skin_harm_hismat_single.txt"
 
 sys .stdout =open (output_file ,"w")
 
@@ -40,7 +40,7 @@ REFERENCE_CLIENT_IDX =0
 REFERENCE_IMAGE_PATH =None 
 IMG_SIZE =224 
 
-splits_root =r"/lustre06/project/6008975/csj5/skinlesions/"
+splits_root =r"/xxxxskinlesions/"
 
 
 client_ext_map ={

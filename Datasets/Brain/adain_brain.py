@@ -38,10 +38,10 @@ from tqdm import tqdm
 # Config
 # =========================================================
 SEED = 42
-DATA_ROOT = r"/lustre06/project/6008975/csj5/braintumor"
+DATA_ROOT = r"/xxxxbraintumor"
 OUTPUT_DIR = "brain_tumor_federated_comogan"
 MODEL_NAME = "efficientnet_b0_brain_tumor_fedavg_comogan.pth"
-WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH = r"/xxxxxxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
 BATCH_SIZE = 4
 LOCAL_EPOCHS = 12

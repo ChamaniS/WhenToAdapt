@@ -359,42 +359,42 @@ def main():
     dataset_class = SkinPairDataset
 
     train_img_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\train\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\train\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\train\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\train\images"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\train\images",
+        r"xxxx\Data\Breasttumor_seg\BUS\train\images",
+        r"xxxx\Data\Breasttumor_seg\BUSI\train\images",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\train\images"
     ]
     train_mask_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\train\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\train\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\train\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\train\masks"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\train\masks",
+        r"xxxx\Data\Breasttumor_seg\BUS\train\masks",
+        r"xxxx\Data\Breasttumor_seg\BUSI\train\masks",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\train\masks"
     ]
 
     val_img_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\val\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\val\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\val\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\val\images"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\val\images",
+        r"xxxx\Data\Breasttumor_seg\BUS\val\images",
+        r"xxxx\Data\Breasttumor_seg\BUSI\val\images",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\val\images"
     ]
     val_mask_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\val\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\val\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\val\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\val\masks"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\val\masks",
+        r"xxxx\Data\Breasttumor_seg\BUS\val\masks",
+        r"xxxx\Data\Breasttumor_seg\BUSI\val\masks",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\val\masks"
     ]
 
     test_img_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\test\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\test\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\test\images",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\test\images"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\test\images",
+        r"xxxx\Data\Breasttumor_seg\BUS\test\images",
+        r"xxxx\Data\Breasttumor_seg\BUSI\test\images",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\test\images"
     ]
     test_mask_dirs = [
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSBRA\test\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUS\test\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\BUSI\test\masks",
-        r"C:\Users\csj5\Projects\Data\Breasttumor_seg\UDIAT\test\masks"
+        r"xxxx\Data\Breasttumor_seg\BUSBRA\test\masks",
+        r"xxxx\Data\Breasttumor_seg\BUS\test\masks",
+        r"xxxx\Data\Breasttumor_seg\BUSI\test\masks",
+        r"xxxx\Data\Breasttumor_seg\UDIAT\test\masks"
     ]
 
     val_transform = A.Compose([

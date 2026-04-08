@@ -43,7 +43,7 @@ MIXSTYLE_ALPHA = 0.2
 # It must contain per-client subfolders as:
 # <splits_root>/<CLIENT>/{train,val,test}/{images,masks}
 # -------------------------
-splits_root = r"C:\Users\csj5\Projects\Data\Breasttumor_seg"
+splits_root = r"xxxx\Data\Breasttumor_seg"
 
 # -------------------------
 # Per-client expected extensions

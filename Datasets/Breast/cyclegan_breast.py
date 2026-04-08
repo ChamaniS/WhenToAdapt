@@ -26,7 +26,7 @@ import torchvision.transforms as T
 import sys
 from unet import UNET
 
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/cyclegan_breast.txt"
+output_file = r"/xxxxxxxx/cyclegan_breast.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 
@@ -63,7 +63,7 @@ os.makedirs(out_dir, exist_ok=True)
 # Must contain:
 # <splits_root>/<CLIENT>/{train,val,test}/{images,masks}
 # ============================================================
-splits_root = r"/lustre06/project/6008975/csj5/Breasttumor_seg/"
+splits_root = r"/xxxxBreasttumor_seg/"
 
 # ============================================================
 # Per-client expected extensions

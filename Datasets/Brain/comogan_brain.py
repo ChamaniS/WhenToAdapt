@@ -42,10 +42,10 @@ except Exception :
 
 
 SEED =42 
-DATA_ROOT =r"/lustre09/project/6008975/csj5/braintumor"
+DATA_ROOT =r"/xxxx/braintumor"
 OUTPUT_DIR ="brain_tumor_federated_comogan"
 MODEL_NAME ="efficientnet_b0_brain_tumor_fedavg_comogan.pth"
-WEIGHTS_PATH =r"/lustre09/project/6008975/csj5/causalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH =r"/xxxx/xxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
 CLIENT_NAMES =["Sartajbhuvaji","rm1000","thomasdubail","figshare"]
 BATCH_SIZE =4 

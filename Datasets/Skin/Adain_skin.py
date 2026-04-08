@@ -23,7 +23,7 @@ from PIL import Image
 from unet import UNET 
 
 
-output_file =r"/lustre06/project/6008975/csj5/narvalenv/skin_AdaIN.txt"
+output_file =r"/xxxxxxxx/skin_AdaIN.txt"
 os .makedirs (os .path .dirname (output_file ),exist_ok =True )
 sys .stdout =open (output_file ,"w")
 sys .stderr =sys .stdout 
@@ -45,7 +45,7 @@ out_dir ="Outputs_AdaIN_SkinLesion"
 os .makedirs (out_dir ,exist_ok =True )
 
 
-splits_root =r"/lustre06/project/6008975/csj5/skinlesions/"
+splits_root =r"/xxxxskinlesions/"
 
 
 client_ext_map ={

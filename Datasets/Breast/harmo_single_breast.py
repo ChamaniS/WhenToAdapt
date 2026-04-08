@@ -44,7 +44,7 @@ IMG_SIZE = 224
 # -------------------------
 # Dataset root
 # -------------------------
-splits_root = r"C:\Users\csj5\Projects\Data\Breasttumor_seg"
+splits_root = r"xxxx\Data\Breasttumor_seg"
 
 # -------------------------
 # Per-client expected extensions

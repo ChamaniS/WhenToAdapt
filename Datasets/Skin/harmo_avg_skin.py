@@ -21,7 +21,7 @@ from skimage import exposure
 
 from unet import UNET 
 
-output_file ="/lustre09/project/6008975/csj5/causalenv/skin_harm_hismat_avg.txt"
+output_file ="/xxxx/xxxx/skin_harm_hismat_avg.txt"
 sys .stdout =open (output_file ,"w")
 
 
@@ -42,7 +42,7 @@ REFERENCE_IMAGE_PATH =None
 IMG_SIZE =224 
 N_REF_SAMPLES =64 
 USE_ALL_REF_IMAGES =False 
-splits_root =r"/lustre09/project/6008975/csj5/skinlesions/"
+splits_root =r"/xxxx/skinlesions/"
 client_ext_map ={
 "HAM10K":((".jpg",),(".png",)),
 "ISIC2017":((".jpg",),(".png",)),

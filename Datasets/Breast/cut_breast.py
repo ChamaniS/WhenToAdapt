@@ -22,7 +22,7 @@ import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
 import sys
 from unet import UNET
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/CUT_breast.txt"
+output_file = r"/xxxxxxxx/CUT_breast.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 
@@ -69,7 +69,7 @@ os.makedirs(out_dir, exist_ok=True)
 
 # Path to pre-prepared splits root:
 # <splits_root>/<CLIENT>/{train,val,test}/{images,masks}
-splits_root = r"/lustre06/project/6008975/csj5/Breasttumor_seg/"
+splits_root = r"/xxxxBreasttumor_seg/"
 
 # Per-client expected extensions
 client_ext_map = {

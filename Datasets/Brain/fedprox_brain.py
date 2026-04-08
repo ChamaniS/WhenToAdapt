@@ -31,14 +31,14 @@ import matplotlib .pyplot as plt
 
 
 SEED =42 
-DATA_ROOT =r"/lustre09/project/6008975/csj5/braintumor"
+DATA_ROOT =r"/xxxx/braintumor"
 OUTPUT_DIR ="brain_tumor_fedprox"
 MODEL_NAME ="efficientnet_b0_brain_tumor_fedprox.pth"
 
 
-WEIGHTS_PATH =r"/lustre09/project/6008975/csj5/causalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH =r"/xxxx/xxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
-output_file =r"/lustre09/project/6008975/csj5/causalenv/Fedprox_brain.txt"
+output_file =r"/xxxx/xxxx/Fedprox_brain.txt"
 os .makedirs (os .path .dirname (output_file ),exist_ok =True )
 sys .stdout =open (output_file ,"w")
 sys .stderr =sys .stdout 

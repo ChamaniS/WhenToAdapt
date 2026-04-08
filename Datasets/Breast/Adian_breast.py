@@ -36,7 +36,7 @@ start_time = time.time()
 out_dir = "Outputs_AdaIN_breast"
 os.makedirs(out_dir, exist_ok=True)
 
-splits_root = r"C:\Users\csj5\Projects\Data\Breasttumor_seg"
+splits_root = r"xxxx\Data\Breasttumor_seg"
 
 client_ext_map = {
     "BUSBRA": ((".png",), (".png",)),

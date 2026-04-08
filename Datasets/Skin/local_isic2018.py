@@ -369,12 +369,12 @@ def main ():
     dataset_class =SkinPairDataset 
     NUM_CLASSES =2 
 
-    TRAIN_IMG_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\train\images"
-    TRAIN_MASK_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\train\masks"
-    VAL_IMG_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\val\images"
-    VAL_MASK_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\val\masks"
-    TEST_IMG_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\test\images"
-    TEST_MASK_DIR =r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\test\masks"
+    TRAIN_IMG_DIR =r"xxxx\Data\skinlesions\ISIC2018\train\images"
+    TRAIN_MASK_DIR =r"xxxx\Data\skinlesions\ISIC2018\train\masks"
+    VAL_IMG_DIR =r"xxxx\Data\skinlesions\ISIC2018\val\images"
+    VAL_MASK_DIR =r"xxxx\Data\skinlesions\ISIC2018\val\masks"
+    TEST_IMG_DIR =r"xxxx\Data\skinlesions\ISIC2018\test\images"
+    TEST_MASK_DIR =r"xxxx\Data\skinlesions\ISIC2018\test\masks"
 
 
     img_exts =(".jpg",".jpeg",".png")

@@ -37,14 +37,14 @@ from PIL import Image
 # Config
 # =========================
 SEED = 42
-DATA_ROOT = r"/lustre06/project/6008975/csj5/Breasttumor_classi_renamed/"
+DATA_ROOT = r"/xxxxBreasttumor_classi_renamed/"
 OUTPUT_DIR = "breast_classi_feature_mixstyle"
 MODEL_NAME = "efficientnet_b0_breast_tumor_feature_mixstyle.pth"
 
 # Optional external pretrained weights
-WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH = r"/xxxxxxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/featurelvl_breast_classi.txt"
+output_file = r"/xxxxxxxx/featurelvl_breast_classi.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 

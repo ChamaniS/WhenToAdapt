@@ -45,7 +45,7 @@ except Exception:
 # Config
 # =========================
 SEED = 42
-DATA_ROOT = r"C:\Users\csj5\Projects\Data\Brain\FINAL"   # parent folder containing client folders
+DATA_ROOT = r"xxxx\Data\Brain\FINAL"   # parent folder containing client folders
 OUTPUT_DIR = "brain_tumor_federated_harmonized"
 MODEL_NAME = "efficientnet_b0_brain_tumor_fedavg_harmonized.pth"
 

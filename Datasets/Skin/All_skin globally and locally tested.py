@@ -359,42 +359,42 @@ def main ():
     dataset_class =SkinPairDataset 
 
     train_img_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\train\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\train\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\train\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\train\images"
+    r"xxxx\Data\skinlesions\HAM10K\train\images",
+    r"xxxx\Data\skinlesions\PH2\train\images",
+    r"xxxx\Data\skinlesions\ISIC2017\train\images",
+    r"xxxx\Data\skinlesions\ISIC2018\train\images"
     ]
     train_mask_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\train\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\train\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\train\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\train\masks"
+    r"xxxx\Data\skinlesions\HAM10K\train\masks",
+    r"xxxx\Data\skinlesions\PH2\train\masks",
+    r"xxxx\Data\skinlesions\ISIC2017\train\masks",
+    r"xxxx\Data\skinlesions\ISIC2018\train\masks"
     ]
 
     val_img_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\val\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\val\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\val\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\val\images"
+    r"xxxx\Data\skinlesions\HAM10K\val\images",
+    r"xxxx\Data\skinlesions\PH2\val\images",
+    r"xxxx\Data\skinlesions\ISIC2017\val\images",
+    r"xxxx\Data\skinlesions\ISIC2018\val\images"
     ]
     val_mask_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\val\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\val\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\val\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\val\masks"
+    r"xxxx\Data\skinlesions\HAM10K\val\masks",
+    r"xxxx\Data\skinlesions\PH2\val\masks",
+    r"xxxx\Data\skinlesions\ISIC2017\val\masks",
+    r"xxxx\Data\skinlesions\ISIC2018\val\masks"
     ]
 
     test_img_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\test\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\test\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\test\images",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\test\images"
+    r"xxxx\Data\skinlesions\HAM10K\test\images",
+    r"xxxx\Data\skinlesions\PH2\test\images",
+    r"xxxx\Data\skinlesions\ISIC2017\test\images",
+    r"xxxx\Data\skinlesions\ISIC2018\test\images"
     ]
     test_mask_dirs =[
-    r"C:\Users\csj5\Projects\Data\skinlesions\HAM10K\test\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\PH2\test\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2017\test\masks",
-    r"C:\Users\csj5\Projects\Data\skinlesions\ISIC2018\test\masks"
+    r"xxxx\Data\skinlesions\HAM10K\test\masks",
+    r"xxxx\Data\skinlesions\PH2\test\masks",
+    r"xxxx\Data\skinlesions\ISIC2017\test\masks",
+    r"xxxx\Data\skinlesions\ISIC2018\test\masks"
     ]
 
     val_transform =A .Compose ([

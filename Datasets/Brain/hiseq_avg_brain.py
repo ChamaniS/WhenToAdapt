@@ -34,7 +34,7 @@ from skimage import exposure
 
 
 
-output_file =r"/lustre06/project/6008975/csj5/narvalenv/hismat_avg_brain.txt"
+output_file =r"/xxxxxxxx/hismat_avg_brain.txt"
 os .makedirs (os .path .dirname (output_file ),exist_ok =True )
 sys .stdout =open (output_file ,"w")
 
@@ -42,12 +42,12 @@ sys .stdout =open (output_file ,"w")
 
 
 SEED =42 
-DATA_ROOT =r"/lustre06/project/6008975/csj5/braintumor/"
-OUTPUT_DIR =r"/lustre06/project/6008975/csj5/narvalenv/brain_tumor_avg_histmatch/"
+DATA_ROOT =r"/xxxxbraintumor/"
+OUTPUT_DIR =r"/xxxxxxxx/brain_tumor_avg_histmatch/"
 MODEL_NAME ="efficientnet_b0_brain_tumor_fedavg_histmatch.pth"
 
 
-WEIGHTS_PATH =r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH =r"/xxxxxxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
 BATCH_SIZE =4 
 LOCAL_EPOCHS =12 

@@ -49,7 +49,7 @@ USE_ALL_REF_IMAGES = False    # set True to average all images in reference clie
 # ============================================================
 # Dataset root
 # ============================================================
-splits_root = r"C:\Users\csj5\Projects\Data\Breasttumor_seg"
+splits_root = r"xxxx\Data\Breasttumor_seg"
 
 # ============================================================
 # Per-client expected extensions

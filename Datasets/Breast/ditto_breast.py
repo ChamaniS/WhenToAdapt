@@ -41,7 +41,7 @@ os.makedirs(out_dir, exist_ok=True)
 # Path to prepared splits
 # <splits_root>/<CLIENT>/{train,val,test}/{images,masks}
 # -------------------------
-splits_root = r"C:\Users\csj5\Projects\Data\Breasttumor_seg"
+splits_root = r"xxxx\Data\Breasttumor_seg"
 
 # -------------------------
 # Per-client expected extensions

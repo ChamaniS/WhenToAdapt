@@ -27,7 +27,7 @@ import matplotlib .pyplot as plt
 
 
 SEED =42 
-DATA_ROOT =r"C:\Users\csj5\Projects\Data\Brain\FINAL\thomasdubail"
+DATA_ROOT =r"xxxx\Data\Brain\FINAL\thomasdubail"
 OUTPUT_DIR ="brain_tumor_client"
 MODEL_NAME ="efficientnet_b0_brain_tumor.pth"
 

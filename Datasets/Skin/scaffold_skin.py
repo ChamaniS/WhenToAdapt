@@ -37,7 +37,7 @@ FOREGROUND_BCE_WEIGHT =5.0
 DICE_WEIGHT =1.0 
 BCE_WEIGHT =1.0 
 
-splits_root =r"C:\Users\csj5\Projects\Data\skinlesions"
+splits_root =r"xxxx\Data\skinlesions"
 
 client_ext_map ={
 "HAM10K":((".jpg",),(".png",)),

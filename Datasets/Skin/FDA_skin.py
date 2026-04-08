@@ -34,7 +34,7 @@ start_time =time .time ()
 
 out_dir ="Outputs"
 os .makedirs (out_dir ,exist_ok =True )
-splits_root =r"C:\Users\csj5\Projects\Data\skinlesions"
+splits_root =r"xxxx\Data\skinlesions"
 
 USE_FDA =True 
 FDA_L =0.05 

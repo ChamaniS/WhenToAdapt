@@ -38,10 +38,10 @@ from skimage import exposure
 
 
 CLIENT_ROOTS =[
-r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Shenzhen",
-r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Montgomery",
-r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\TBX11K",
-r"C:\Users\csj5\Projects\Data\Tuberculosis_Data\Pakistan"
+r"xxxx\Data\Tuberculosis_Data\Shenzhen",
+r"xxxx\Data\Tuberculosis_Data\Montgomery",
+r"xxxx\Data\Tuberculosis_Data\TBX11K",
+r"xxxx\Data\Tuberculosis_Data\Pakistan"
 ]
 CLIENT_NAMES =["Shenzhen","Montgomery","TBX11K","Pakistan"]
 OUTPUT_DIR =r"./tubo_his_avg"

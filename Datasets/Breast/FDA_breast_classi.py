@@ -34,14 +34,14 @@ from PIL import Image
 # =========================================================
 SEED = 42
 
-DATA_ROOT = r"/lustre06/project/6008975/csj5/Breasttumor_classi_renamed/"
+DATA_ROOT = r"/xxxxBreasttumor_classi_renamed/"
 OUTPUT_DIR = "breast_class_federated_fda"
 MODEL_NAME = "efficientnet_b0_breast_tumor_fedavg_fda.pth"
 
 # This file will be loaded into EfficientNet-B0
-WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH = r"/xxxxxxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/FDA_breast.txt"
+output_file = r"/xxxxxxxx/FDA_breast.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 

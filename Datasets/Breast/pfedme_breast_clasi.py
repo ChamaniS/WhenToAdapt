@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 # =========================================================
 SEED = 42
 
-DATA_ROOT = r"C:\Users\csj5\Projects\Data\Breasttumor_classi_renamed" # parent folder containing client folders
+DATA_ROOT = r"xxxx\Data\Breasttumor_classi_renamed" # parent folder containing client folders
 OUTPUT_DIR = "breast_tumor_pfedme"
 MODEL_NAME = "efficientnet_b0_breast_tumor_pfedme.pth"
 

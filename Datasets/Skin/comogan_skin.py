@@ -22,7 +22,7 @@ import matplotlib .pyplot as plt
 from PIL import Image ,ImageOps ,ImageEnhance 
 import sys 
 from unet import UNET 
-output_file =r"/lustre06/project/6008975/csj5/narvalenv/skin_comogan.txt"
+output_file =r"/xxxxxxxx/skin_comogan.txt"
 sys .stdout =open (output_file ,"w")
 
 
@@ -44,7 +44,7 @@ start_time =time .time ()
 out_dir ="Outputs_comogan"
 os .makedirs (out_dir ,exist_ok =True )
 
-splits_root =r"/lustre06/project/6008975/csj5/skinlesions/"
+splits_root =r"/xxxxskinlesions/"
 
 client_ext_map ={
 "HAM10K":((".jpg",),(".png",)),

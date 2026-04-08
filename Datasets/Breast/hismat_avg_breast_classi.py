@@ -34,7 +34,7 @@ from skimage import exposure
 # =========================================================
 # Logging
 # =========================================================
-output_file = r"/lustre06/project/6008975/csj5/narvalenv/hismat_avg_brain.txt"
+output_file = r"/xxxxxxxx/hismat_avg_brain.txt"
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
 sys.stdout = open(output_file, "w")
 
@@ -42,12 +42,12 @@ sys.stdout = open(output_file, "w")
 # Config
 # =========================
 SEED = 42
-DATA_ROOT = r"/lustre06/project/6008975/csj5/Breasttumor_classi_renamed/"
-OUTPUT_DIR = r"/lustre06/project/6008975/csj5/narvalenv/breast_tumor_avg_histmatch/"
+DATA_ROOT = r"/xxxxBreasttumor_classi_renamed/"
+OUTPUT_DIR = r"/xxxxxxxx/breast_tumor_avg_histmatch/"
 MODEL_NAME = "efficientnet_b0_breast_tumor_fedavg_histmatch.pth"
 
 # Put the downloaded EfficientNet-B0 weights file here
-WEIGHTS_PATH = r"/lustre06/project/6008975/csj5/narvalenv/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
+WEIGHTS_PATH = r"/xxxxxxxx/pretrained/efficientnet_b0_rwightman-7f5810bc.pth"
 
 BATCH_SIZE = 4
 LOCAL_EPOCHS = 12

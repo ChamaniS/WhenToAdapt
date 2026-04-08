@@ -17,7 +17,7 @@ import segmentation_models_pytorch as smp
 import matplotlib .pyplot as plt 
 import sys 
 from unet import UNET 
-output_file =r"/lustre06/project/6008975/csj5/narvalenv/skin_pfedme.txt"
+output_file =r"/xxxxxxxx/skin_pfedme.txt"
 sys .stdout =open (output_file ,"w")
 
 DEVICE ="cuda"if torch .cuda .is_available ()else "cpu"
@@ -37,7 +37,7 @@ INNER_LR =5e-3
 OUTER_ETA =1e-4 
 BETA =1.0 
 
-splits_root =r"/lustre06/project/6008975/csj5/skinlesions/"
+splits_root =r"/xxxxskinlesions/"
 
 client_ext_map ={
 "HAM10K":((".jpg",),(".png",)),

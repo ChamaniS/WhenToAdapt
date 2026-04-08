@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 # =========================================================
 SEED = 42
 
-DATA_ROOT = r"C:\Users\csj5\Projects\Data\Breasttumor_classi_renamed"
+DATA_ROOT = r"xxxx\Data\Breasttumor_classi_renamed"
 OUTPUT_DIR = "breast_tumor_federated_scaffold"
 MODEL_NAME = "efficientnet_b0_breast_tumor_scaffold.pth"
 
