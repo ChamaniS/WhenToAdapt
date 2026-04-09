@@ -105,3 +105,22 @@ Create and activate environment:
 ```bash
 conda create -n whentoadapt python=3.9 -y
 conda activate whentoadapt
+```
+
+Install the requirements:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Citation
+If you find this project useful in your research, please cite our paper:
+
+```bash
+@article{Anonymous_2026,
+  title={When To Adapt: Adapting Model or Data in Federated Medical Imaging},
+  author={Anonymous},
+  journal={Proceeding of XXX},
+  year={2026}
+}
+```
