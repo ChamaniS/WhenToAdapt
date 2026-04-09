@@ -30,44 +30,44 @@ We consider **6 federated tasks**, each with 4 clients (datasets):
 ### 🧠 Segmentation Tasks
 
 #### 1. Colon polyp segmentation (structural heterogeneity)
-- Kvasir-SEG (1000)
-- ETIS-Larib (196)
-- CVC-ColonDB (380)
-- CVC-ClinicDB (612)
+- Kvasir-SEG (1000 samples)
+- ETIS-Larib (196 samples)
+- CVC-ColonDB (380 samples)
+- CVC-ClinicDB (612 samples)
 
 #### 2. Skin lesion segmentation (appearance + lesion variability)
-- HAM10000 (10015)
-- PH2 (200)
-- ISIC2017 (2000)
-- ISIC2018 (2594)
+- HAM10000 (10015 samples)
+- PH2 (200 samples)
+- ISIC2017 (2000 samples)
+- ISIC2018 (2594 samples)
 
 #### 3. Breast tumor segmentation (cross-device ultrasound variability)
-- BUS-BRA (1875)
-- BUS_UC (811)
-- BUSI (437)
-- UDIAT (163)
+- BUS-BRA (1875 samples)
+- BUS_UC (811 samples)
+- BUSI (437 samples)
+- UDIAT (163 samples)
 
 ---
 
 ### 🧪 Classification Tasks
 
 #### 4. Tuberculosis CXR classification (style/scanner heterogeneity)
-- Shenzhen Hospital (662)
-- Montgomery County (138)
-- TBX11K (1600 subset used)
-- Pakistan (local dataset, 3008)
+- Shenzhen Hospital (662 samples)
+- Montgomery County (138 samples)
+- TBX11K (a subset of 1600 samples)
+- Pakistan (local dataset, 3008 samples)
 
 #### 5. Brain tumor classification (dataset/domain heterogeneity)
-- Sartaj Bhuvaji (Kaggle) (3160)
-- RM1000 (Kaggle) (7023)
-- Thomas Dubail (Kaggle) (3096)
-- Figshare (Cheng et al.) (7200)
+- Sartajbhuvaji (Kaggle) (3160 samples)
+- RM1000 (Kaggle) (7023 samples)
+- thomasdubail (Kaggle) (3096 samples)
+- Figshare (7200 samples)
 
 #### 6. Breast tumor classification (ultrasound domain shift)
-- BUS-BRA (1875)
-- BUS_UC (811)
-- BUSI (647)
-- UDIAT (163)
+- BUS-BRA (1875 samples)
+- BUS_UC (811 samples)
+- BUSI (647 samples)
+- UDIAT (163 samples)
 
 ---
 
