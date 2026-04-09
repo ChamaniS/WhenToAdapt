@@ -1,7 +1,6 @@
 # WhenToAdapt
 
-This is the official code repository of the paper  
-**"When To Adapt: Adapting Model or Data in Federated Medical Imaging."**
+This is the official code repository of the paper: **"When To Adapt: Adapting Model or Data in Federated Medical Imaging."**
 
 ---
 
@@ -82,7 +81,7 @@ We consider **6 federated tasks**, each with 4 clients (datasets):
    → Data harmonization significantly improves global model performance.
 
 3. **Mixed regimes (e.g., skin, brain MRI)**  
-   Neither approach dominates universally—performance depends on dataset bias and scale.
+   Neither approach dominates universally. Performance depends on dataset bias and scale.
 
 ---
 
