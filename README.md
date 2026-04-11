@@ -73,9 +73,9 @@ We consider **6 federated tasks**, each with 4 clients (datasets):
 ## Data harmonization results
 
 Following are the data harmonization images for the five datasets:  
-![](Figures/colon_skin.png)
-![](Figures/TB_brain.png)
-![](Figures/breast_tumor_datasets.png)
+![](Figures/colon_skin.PNG)
+![](Figures/TB_brain.PNG)
+![](Figures/breast_tumor_datasets.PNG)
 ---
 
 
