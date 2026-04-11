@@ -70,6 +70,16 @@ We consider **6 federated tasks**, each with 4 clients (datasets):
 
 ---
 
+## Data harmonization results
+
+Following are the data harmonization images for the five datasets:  
+![Segmentation tasks](Figures/colon_skin.png)
+![Classification tasks](Figures/TB_brain.png)
+![Segmentation and classification task](Figures/breast_tumor_datasets.png)
+---
+
+
+
 ## Highlights / Key findings
 
 1. **Structural heterogeneity → Adapt the model**  
