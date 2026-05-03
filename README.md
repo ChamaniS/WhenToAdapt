@@ -126,10 +126,10 @@ pip install -r requirements.txt
 If you find this project useful in your research, please cite our paper:
 
 ```bash
-@article{Anonymous_2026,
+@article{whentoadapt_shiranthika_2026,
   title={When To Adapt: Adapting Model or Data in Federated Medical Imaging},
-  author={Anonymous},
-  journal={Proceeding of XXX},
+  author={Chamani Shiranthika, Parvaneh Saeedi},
+  journal={Proceeding of 24th International Conference on AI in Medicine (AIME'26)},
   year={2026}
 }
 ```
